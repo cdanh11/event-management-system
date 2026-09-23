@@ -1,0 +1,7 @@
+Làm lõi: Pydantic model, dependency (DB, auth, phân quyền) 
+Hoàn thiện lõi: async endpoint đúng chỗ; viết Chương 4 
+Làm phần chọn thêm: OpenAPI, exception handler, middleware, background task 
+Nối BE thật vào FE, chạy đủ vòng đời Create–Cancel–Reschedule–Complete–Notify .
+Test bằng TestClient, đo số liệu; viết Chương 11–12; hoàn thiện Bảng phủ kỹ thuật; nháp hands-on lab 
+Hoàn thiện lab, Chương 13–14, báo cáo, slide, video; niêm phong code 
+
