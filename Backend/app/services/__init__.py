@@ -1,0 +1,1 @@
+"""Gói dịch vụ (service layer): logic không phụ thuộc trực tiếp vào HTTP."""
