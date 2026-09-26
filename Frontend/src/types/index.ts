@@ -75,21 +75,3 @@ export interface StaffAssignment {
   staffEmail: string;
   createdAt: string;
 }
-
-type ApiStaffAssignment = {
-  id: string;
-  event_id: string;
-  staff_id: string;
-  staff_name: string;
-  staff_email: string;
-  created_at: string;
-};
-
-const staffAssignment = (a: ApiStaffAssignment): StaffAssignment => ({
-  id: a.id,
-  eventId: a.event_id,
-  staffId: a.staff_id,
-  staffName: a.staff_name,
-  staffEmail: a.staff_email,
-  createdAt: a.created_at,
-});
