@@ -9,6 +9,7 @@ import {
   ticketService,
   checkinService,
   organizerService,
+  staffService 
 } from '../services/services';
 import type { Event, EventStatus, Registration, Role } from '../types';
 
@@ -620,8 +621,46 @@ function CreateEvent() {
         {error && <div className="notice error">{error}</div>}
         <button className="primary">Create draft event</button>
       </form>
+
+      <p className="hint">After creating, you'll land on the event's management page where you can publish it and assign staff.</p>
     </Layout>
   );
+}
+
+function StaffAssignment({ eventId }: { eventId: string }) {
+  const { data: allStaff } = useAsync(staffService.listStaff, [])
+  const { data: assigned, loading, reload } = useAsync(() => staffService.assignedTo(eventId), [eventId])
+  const [staffId, setStaffId] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const assign = async () => {
+    if (!staffId) return
+    setBusy(true); setError('')
+    try { await staffService.assign(eventId, staffId); setStaffId(''); void reload() }
+    catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const assignedIds = new Set((assigned ?? []).map(a => a.staffId))
+  const available = (allStaff ?? []).filter(s => !assignedIds.has(s.id))
+
+  return <section className="actions">
+    <h2>Assign staff</h2>
+    <div className="toolbar" style={{ marginBottom: 14 }}>
+      <select value={staffId} onChange={e => setStaffId(e.target.value)}>
+        <option value="">Select a staff account…</option>
+        {available.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
+      </select>
+      <button className="secondary" disabled={busy || !staffId} onClick={assign}>{busy ? 'Assigning…' : 'Assign staff'}</button>
+    </div>
+    {error && <div className="notice error">{error}</div>}
+    {loading ? <State text="Loading assigned staff…" /> : assigned?.length ? (
+      <ul style={{ margin: 0, paddingLeft: 18, color: '#3d4944' }}>
+        {assigned.map(a => <li key={a.id}>{a.staffName} — {a.staffEmail}</li>)}
+      </ul>
+    ) : <p style={{ color: '#68716d', fontSize: 13 }}>No staff assigned yet.</p>}
+  </section>
 }
 
 function ManageEvent() {
@@ -681,6 +720,7 @@ function ManageEvent() {
           </button>
         )}
       </section>
+      <StaffAssignment eventId={event.id}/>
     </Layout>
   );
 }

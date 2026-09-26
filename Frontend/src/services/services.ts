@@ -1,5 +1,5 @@
 import { request } from '../api/apiClient';
-import type { CheckIn, Event, EventStatus, Registration, Ticket, User } from '../types';
+import type { CheckIn, Event, EventStatus, Registration, StaffAssignment, Ticket, User } from '../types';
 
 type ApiEvent = {
   id: string;
@@ -100,6 +100,24 @@ const checkin = (c: ApiCheckin): CheckIn => ({
   status: c.status,
 });
 
+type ApiStaffAssignment = {
+  id: string;
+  event_id: string;
+  staff_id: string;
+  staff_name: string;
+  staff_email: string;
+  created_at: string;
+};
+
+const staffAssignment = (a: ApiStaffAssignment): StaffAssignment => ({
+  id: a.id,
+  eventId: a.event_id,
+  staffId: a.staff_id,
+  staffName: a.staff_name,
+  staffEmail: a.staff_email,
+  createdAt: a.created_at,
+});
+
 export const eventService = {
   getEvents: async () => 
     (await request<ApiEvent[]>('/events')).map(event),
@@ -180,4 +198,17 @@ export const organizerService = {
       events: data.events.map(event),
     };
   },
+};
+
+export const staffService = {
+  listStaff: () => request<User[]>('/users?role=STAFF'),
+
+  assignedTo: async (eventId: string) =>
+    (await request<ApiStaffAssignment[]>(`/events/${eventId}/staff`)).map(staffAssignment),
+
+  assign: (eventId: string, staffId: string) =>
+    request<{ event_id: string; staff_id: string }>(`/events/${eventId}/staff`, {
+      method: 'POST',
+      body: JSON.stringify({ staff_id: staffId }),
+    }),
 };

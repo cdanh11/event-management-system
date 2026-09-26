@@ -66,3 +66,12 @@ export interface ApiError extends Error {
   status: number;
   code: string;
 }
+
+export interface StaffAssignment {
+  id: string;
+  eventId: string;
+  staffId: string;
+  staffName: string;
+  staffEmail: string;
+  createdAt: string;
+}
