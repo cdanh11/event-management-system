@@ -137,3 +137,13 @@ class AssignmentIn(BaseModel):
     """Body của POST /events/{id}/staff: staff_id người được gán."""
 
     staff_id: str
+
+
+class StaffAssignmentOut(BaseModel):
+    """Một bản ghi gán staff vào event, kèm thông tin cơ bản của staff."""
+    id: str
+    event_id: str
+    staff_id: str
+    staff_name: str
+    staff_email: str
+    created_at: datetime

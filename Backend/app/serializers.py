@@ -3,8 +3,12 @@
 Tên cột trong DB (vd ``banner_url``, ``avatar_url``) khác tên field API
 (vd ``banner_image``, ``avatar``). Tập trung mọi mapping ở đây để endpoint
 chỉ cần gọi ``to_event(e)``... thay vì tự viết dict ở từng router.
+
+Chọn đúng field cần trả — không lộ field thừa/nhạy cảm
+Đổi tên field khi cần (như to_event: banner_url (DB) → banner_image (API))
+Tập trung logic mapping — sửa 1 chỗ, áp dụng cho mọi endpoint trả về Ticket
 """
-from .models import Checkin, Event, Registration, Ticket, User
+from .models import Checkin, Event, Registration, StaffEventAssignment, Ticket, User
 
 
 def to_user(user: User) -> dict:
@@ -65,4 +69,14 @@ def to_checkin(checkin: Checkin) -> dict:
         "checked_in_by": checkin.checked_in_by,
         "checked_in_at": checkin.checked_in_at,
         "status": checkin.status,
+    }
+
+def to_staff_assignment(assignment: StaffEventAssignment, staff: User) -> dict:
+    return {
+        "id": assignment.id,
+        "event_id": assignment.event_id,
+        "staff_id": assignment.staff_id,
+        "staff_name": staff.name,
+        "staff_email": staff.email,
+        "created_at": assignment.created_at,
     }

@@ -9,8 +9,8 @@ from ..db import get_db
 from ..deps import require
 from ..errors import api_error
 from ..models import Checkin, Event, Registration, StaffEventAssignment, User
-from ..schemas import AssignmentIn, EventOut
-from ..serializers import to_event
+from ..schemas import AssignmentIn, EventOut, StaffAssignmentOut, UserOut
+from ..serializers import to_event, to_staff_assignment, to_user
 
 router = APIRouter()
 
@@ -84,3 +84,35 @@ def assign_staff(
         api_error(409, "ALREADY_ASSIGNED", "Staff is already assigned")
 
     return {"event_id": event.id, "staff_id": staff.id}
+
+
+@router.get("/users", response_model=list[UserOut], tags=["staff"])
+def list_users(
+    role: str | None = None,
+    user: User = Depends(require("ORGANIZER")),
+    db: Session = Depends(get_db),
+):
+    """Danh sách user, lọc theo role. Dùng để organizer tìm staff gán vào event."""
+    stmt = select(User)
+    if role:
+        stmt = stmt.where(User.role == role)
+
+    users = db.scalars(stmt.order_by(User.name)).all()
+    return [to_user(u) for u in users] # convert từng User → dict
+
+
+@router.get("/events/{event_id}/staff", response_model=list[StaffAssignmentOut], tags=["assignments"])
+def list_event_staff(
+    event_id: str,
+    user: User = Depends(require("ORGANIZER")),
+    db: Session = Depends(get_db),
+):
+    """Danh sách staff đã được gán vào event (chỉ organizer sở hữu event)."""
+    event = db.get(Event, event_id)
+    if event is None:
+        api_error(404, "EVENT_NOT_FOUND", "Event not found")
+    if event.organizer_id != user.id:
+        api_error(403, "FORBIDDEN", "You do not own this event")
+
+    rows = db.scalars(select(StaffEventAssignment).where(StaffEventAssignment.event_id == event_id)).all()
+    return [to_staff_assignment(a, db.get(User, a.staff_id)) for a in rows]
