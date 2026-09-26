@@ -31,7 +31,7 @@ async def notify_attendees(event_title: str, attendee_emails: list[str]) -> int:
         # I/O THẬT: await phản hồi HTTP từ dịch vụ gửi email/webhook bên ngoài.
         payload = {"event": event_title, "recipients": attendee_emails}
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            response = await client.post( # chờ server trả lời mà không chặn event loop, có thể xử lý việc khác
                 settings.notify_webhook_url, json=payload, timeout=5.0
             )
             response.raise_for_status()

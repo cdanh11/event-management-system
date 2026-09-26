@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     logger.info("Lifespan startup: ứng dụng Evently bắt đầu khởi chạy.")
     yield
     logger.info("Lifespan shutdown: đóng connection pool database.")
-    engine.dispose()
+    engine.dispose() #dọn dẹp db
 
 
 app = FastAPI(
@@ -128,9 +128,9 @@ def custom_openapi():
     schema["components"]["securitySchemes"] = {
         "HTTPBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
     }
-    schema["security"] = [{"HTTPBearer": []}]
+    schema["security"] = [{"HTTPBearer": []}] # Áp dụng scheme đó làm security mặc định cho toàn bộ API
 
-    app.openapi_schema = schema
+    app.openapi_schema = schema # Lưu lại vào cache để lần gọi sau không build lại
     return schema
 
 

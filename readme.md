@@ -112,13 +112,13 @@ Mở [http://localhost:5173](http://localhost:5173). Giữ hai terminal chạy t
 
 Các tài khoản sau chỉ có sau khi seed thành công; tất cả dùng mật khẩu **`123456`**:
 
-| Vai trò | Email | Mục đích |
-| --- | --- | --- |
-| ATTENDEE | `attendee@demo.com` | Đăng ký sự kiện; có sẵn vé AI Product Meetup |
-| ATTENDEE | `linh@demo.com`, `huy@demo.com` | Thử với người tham dự khác |
-| STAFF | `staff@demo.com` | Check-in cho AI Product Meetup |
-| STAFF | `khanh.staff@demo.com` | Được phân công Vietnam Tech Conference 2026 |
-| ORGANIZER | `organizer@demo.com` | Quản lý sự kiện mẫu và tạo sự kiện mới |
+| Vai trò   | Email                           | Mục đích                                     |
+| --------- | ------------------------------- | -------------------------------------------- |
+| ATTENDEE  | `attendee@demo.com`             | Đăng ký sự kiện; có sẵn vé AI Product Meetup |
+| ATTENDEE  | `linh@demo.com`, `huy@demo.com` | Thử với người tham dự khác                   |
+| STAFF     | `staff@demo.com`                | Check-in cho AI Product Meetup               |
+| STAFF     | `khanh.staff@demo.com`          | Được phân công Vietnam Tech Conference 2026  |
+| ORGANIZER | `organizer@demo.com`            | Quản lý sự kiện mẫu và tạo sự kiện mới       |
 
 Vào `/login`, nhập email và mật khẩu rồi chọn **Sign in**. Dùng biểu tượng đăng xuất ở góc phải để đổi vai trò. Hiện chưa có chức năng tự đăng ký tài khoản mới.
 
@@ -164,24 +164,24 @@ Số lượng đăng ký trên sự kiện seed là dữ liệu minh họa, khô
 2. Nhập body với tài khoản đúng vai trò, rồi chọn **Execute**:
 
    ```json
-   {"email": "organizer@demo.com", "password": "123456"}
+   { "email": "organizer@demo.com", "password": "123456" }
    ```
 
 3. Sao chép `access_token` trong response, bấm **Authorize**, dán token vào ô HTTPBearer (không thêm tiền tố `Bearer`). Khi đổi vai trò, đăng nhập lại và thay token trong **Authorize**.
 4. Dùng các API sau; lấy ID từ response thay vì dùng tên sự kiện hoặc email thay ID:
 
-| Thao tác | Endpoint | Vai trò / dữ liệu |
-| --- | --- | --- |
-| Danh sách sự kiện và ID | `GET /events` | Không cần đăng nhập |
-| Đăng ký sự kiện | `POST /events/{event_id}/register` | ATTENDEE; response có vé và `ticket_code` |
-| Đăng ký cá nhân | `GET /registrations/me` | ATTENDEE; lấy ID đăng ký |
-| Lấy vé đã đăng ký | `GET /registrations/{registration_id}/ticket` | Người sở hữu vé; đọc `ticket_code` |
-| Dời lịch/chỉnh sửa | `PATCH /events/{event_id}` | ORGANIZER sở hữu sự kiện; gửi trường cần đổi như `start_time`, `end_time` |
-| ID người dùng hiện tại | `GET /auth/me` | Đăng nhập STAFF để lấy ID nhân viên |
-| Phân công nhân viên | `POST /events/{event_id}/staff` | ORGANIZER sở hữu sự kiện; body `{"staff_id":"ID nhân viên"}` |
-| Sự kiện được phân công | `GET /staff/events` | STAFF |
-| Check-in | `POST /checkins` | STAFF được phân công; body `{"ticket_code":"AI-MEET-2026"}` |
-| Gửi thông báo | `POST /events/{event_id}/notify` | ORGANIZER sở hữu sự kiện |
+| Thao tác                | Endpoint                                      | Vai trò / dữ liệu                                                         |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| Danh sách sự kiện và ID | `GET /events`                                 | Không cần đăng nhập                                                       |
+| Đăng ký sự kiện         | `POST /events/{event_id}/register`            | ATTENDEE; response có vé và `ticket_code`                                 |
+| Đăng ký cá nhân         | `GET /registrations/me`                       | ATTENDEE; lấy ID đăng ký                                                  |
+| Lấy vé đã đăng ký       | `GET /registrations/{registration_id}/ticket` | Người sở hữu vé; đọc `ticket_code`                                        |
+| Dời lịch/chỉnh sửa      | `PATCH /events/{event_id}`                    | ORGANIZER sở hữu sự kiện; gửi trường cần đổi như `start_time`, `end_time` |
+| ID người dùng hiện tại  | `GET /auth/me`                                | Đăng nhập STAFF để lấy ID nhân viên                                       |
+| Phân công nhân viên     | `POST /events/{event_id}/staff`               | ORGANIZER sở hữu sự kiện; body `{"staff_id":"ID nhân viên"}`              |
+| Sự kiện được phân công  | `GET /staff/events`                           | STAFF                                                                     |
+| Check-in                | `POST /checkins`                              | STAFF được phân công; body `{"ticket_code":"AI-MEET-2026"}`               |
+| Gửi thông báo           | `POST /events/{event_id}/notify`              | ORGANIZER sở hữu sự kiện                                                  |
 
 Thông báo mặc định chạy mô phỏng (`mode: simulated`). Để gửi HTTP webhook thật, đặt thêm `NOTIFY_WEBHOOK_URL` trong `Backend/.env` và khởi động lại backend. Chuyển sang `COMPLETED` cũng lên lịch thông báo cho người còn đăng ký; hiện chưa có cấu hình gửi email trực tiếp.
 
@@ -205,14 +205,14 @@ Preview phục vụ bản build ở URL được in trong terminal; vẫn cần 
 
 ## Lỗi thường gặp
 
-| Hiện tượng | Cách kiểm tra |
-| --- | --- |
-| Không kết nối được PostgreSQL | Kiểm tra dịch vụ PostgreSQL, database đã tạo, user/mật khẩu/cổng trong `DATABASE_URL`. |
-| Báo thiếu bảng dữ liệu | Chạy Alembic từ thư mục `Backend`, kiểm tra đang trỏ đúng database. |
-| Tài khoản demo đăng nhập thất bại | Kiểm tra đã seed thành công; seed bỏ qua nếu database đã có user. |
-| `Failed to fetch` hoặc lỗi CORS | Kiểm tra backend đang chạy, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN` và hostname; khởi động lại sau khi sửa `.env`. |
-| `REGISTRATION_CLOSED` | Chọn sự kiện `PUBLISHED`; backend không cho đăng ký khi `ONGOING`. |
-| `FORBIDDEN` / `CHECKIN_CLOSED` khi check-in | Dùng STAFF đã được phân công và chuyển sự kiện sang `ONGOING`. |
-| Vé thiếu mã hoặc check-in lỗi hiển thị ngày | Xem ghi chú về tên trường API ở phần hướng dẫn; dùng Swagger để đọc kết quả. |
+| Hiện tượng                                  | Cách kiểm tra                                                                                                     |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Không kết nối được PostgreSQL               | Kiểm tra dịch vụ PostgreSQL, database đã tạo, user/mật khẩu/cổng trong `DATABASE_URL`.                            |
+| Báo thiếu bảng dữ liệu                      | Chạy Alembic từ thư mục `Backend`, kiểm tra đang trỏ đúng database.                                               |
+| Tài khoản demo đăng nhập thất bại           | Kiểm tra đã seed thành công; seed bỏ qua nếu database đã có user.                                                 |
+| `Failed to fetch` hoặc lỗi CORS             | Kiểm tra backend đang chạy, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN` và hostname; khởi động lại sau khi sửa `.env`. |
+| `REGISTRATION_CLOSED`                       | Chọn sự kiện `PUBLISHED`; backend không cho đăng ký khi `ONGOING`.                                                |
+| `FORBIDDEN` / `CHECKIN_CLOSED` khi check-in | Dùng STAFF đã được phân công và chuyển sự kiện sang `ONGOING`.                                                    |
+| Vé thiếu mã hoặc check-in lỗi hiển thị ngày | Xem ghi chú về tên trường API ở phần hướng dẫn; dùng Swagger để đọc kết quả.                                      |
 
 Xem thêm cấu trúc backend và nội dung thực hành FastAPI trong [Backend/README.md](Backend/README.md).

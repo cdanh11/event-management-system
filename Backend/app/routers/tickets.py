@@ -19,7 +19,7 @@ def get_ticket(
     db: Session = Depends(get_db),
 ):
     """Chi tiết một vé. ATTENDEE chỉ xem được vé của chính mình."""
-    ticket = db.get(Ticket, ticket_id)
+    ticket = db.get(Ticket, ticket_id) #Đây là shortcut có sẵn trong SQLAlchemy => SELECT * FROM tickets WHERE id = 'ticket_id_value';
     if ticket is None:
         api_error(404, "TICKET_NOT_FOUND", "Ticket not found")
 

@@ -7,7 +7,7 @@ Tạo database (nếu chưa có), thêm 6 tài khoản demo (mật khẩu: ``123
 from datetime import datetime, timedelta
 
 from .db import Base, SessionLocal, engine
-from .models import Event, Registration, StaffEventAssignment, Ticket, User
+from .models import Event, Registration, StaffEventAssignment, Ticket, User #tất cả tự đăng ký vào Base.metadata
 from .security import hash_password
 
 
@@ -37,7 +37,7 @@ def run() -> None:
              avatar_url="ET", password_hash=hash_password("123456")),
     ]
     db.add_all(users)
-    db.flush()
+    db.flush() # gửi câu lệnh SQL xuống DB (DB sinh ra id thật cho mỗi row), nhưng transaction chưa đóng — vẫn có thể rollback
     organizer = users[-1]
 
     # --- 6 sự kiện mẫu ở nhiều trạng thái ---------------------------------
