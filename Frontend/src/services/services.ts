@@ -17,8 +17,7 @@ type ApiEvent = {
   created_at: string;
 };
 
-// Helper mapper: ApiEvent (snake_case) -> Event (camelCase)
-const mapEvent = (e: ApiEvent): Event => ({
+const event = (e: ApiEvent): Event => ({
   id: e.id,
   organizerId: e.organizer_id,
   title: e.title,
@@ -34,10 +33,9 @@ const mapEvent = (e: ApiEvent): Event => ({
   createdAt: e.created_at,
 });
 
-// Helper payload converter: CreateEventInput -> ApiEvent payload (snake_case)
-type CreateEventInput = Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>;
-
-const mapPayload = (v: CreateEventInput) => ({
+const eventPayload = (
+  v: Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>
+) => ({
   title: v.title,
   description: v.description,
   location: v.location,
@@ -48,81 +46,138 @@ const mapPayload = (v: CreateEventInput) => ({
   banner_image: v.bannerImage,
 });
 
-// Services
+type ApiRegistration = {
+  id: string;
+  event_id: string;
+  attendee_id: string;
+  registered_at: string;
+  status: Registration['status'];
+};
+
+const registration = (r: ApiRegistration): Registration => ({
+  id: r.id,
+  eventId: r.event_id,
+  attendeeId: r.attendee_id,
+  registeredAt: r.registered_at,
+  status: r.status,
+});
+
+type ApiTicket = {
+  id: string;
+  registration_id: string;
+  ticket_code: string;
+  qr_value: string;
+  status: Ticket['status'];
+  issued_at: string;
+};
+
+const ticket = (t: ApiTicket): Ticket => ({
+  id: t.id,
+  registrationId: t.registration_id,
+  ticketCode: t.ticket_code,
+  qrValue: t.qr_value,
+  status: t.status,
+  issuedAt: t.issued_at,
+});
+
+type ApiCheckin = {
+  id: string;
+  ticket_id: string;
+  event_id: string;
+  attendee_id: string;
+  checked_in_by: string;
+  checked_in_at: string;
+  status: CheckIn['status'];
+};
+
+const checkin = (c: ApiCheckin): CheckIn => ({
+  id: c.id,
+  ticketId: c.ticket_id,
+  eventId: c.event_id,
+  attendeeId: c.attendee_id,
+  checkedInBy: c.checked_in_by,
+  checkedInAt: c.checked_in_at,
+  status: c.status,
+});
+
 export const eventService = {
-  getEvents: async (): Promise<Event[]> => {
-    const data = await request<ApiEvent[]>('/events');
-    return data.map(mapEvent);
-  },
+  getEvents: async () => 
+    (await request<ApiEvent[]>('/events')).map(event),
 
-  getEvent: async (id: string): Promise<Event> => {
-    const data = await request<ApiEvent>(`/events/${id}`);
-    return mapEvent(data);
-  },
+  getEvent: async (id: string) => 
+    event(await request<ApiEvent>(`/events/${id}`)),
 
-  create: async (input: CreateEventInput, _u: User): Promise<Event> => {
-    const data = await request<ApiEvent>('/events', {
-      method: 'POST',
-      body: JSON.stringify(mapPayload(input)),
-    });
-    return mapEvent(data);
-  },
+  create: async (
+    input: Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>,
+    _u: User
+  ) =>
+    event(
+      await request<ApiEvent>('/events', {
+        method: 'POST',
+        body: JSON.stringify(eventPayload(input)),
+      })
+    ),
 
-  transition: async (id: string, s: EventStatus): Promise<Event> => {
-    const data = await request<ApiEvent>(`/events/${id}/transition`, {
-      method: 'POST',
-      body: JSON.stringify({ status: s }),
-    });
-    return mapEvent(data);
-  },
+  transition: async (id: string, s: EventStatus) =>
+    event(
+      await request<ApiEvent>(`/events/${id}/transition`, {
+        method: 'POST',
+        body: JSON.stringify({ status: s }),
+      })
+    ),
 };
 
 export const registrationService = {
-  mine: (_id: string) => 
-    request<Registration[]>('/registrations/me'),
+  mine: async (_id: string) =>
+    (await request<ApiRegistration[]>('/registrations/me')).map(registration),
 
-  get: (id: string) => 
-    request<Registration>(`/registrations/${id}`),
+  get: async (id: string) =>
+    registration(await request<ApiRegistration>(`/registrations/${id}`)),
 
-  register: (eventId: string, _u: User) => 
-    request<{ registration: Registration; ticket: Ticket }>(`/events/${eventId}/register`, {
-      method: 'POST',
-    }),
+  register: async (eventId: string, _u: User) => {
+    const r = await request<{ registration: ApiRegistration; ticket: ApiTicket }>(
+      `/events/${eventId}/register`,
+      { method: 'POST' }
+    );
+    return {
+      registration: registration(r.registration),
+      ticket: ticket(r.ticket),
+    };
+  },
 
-  cancel: (id: string) => 
-    request<Registration>(`/registrations/${id}/cancel`, {
-      method: 'POST',
-    }),
+  cancel: async (id: string) =>
+    registration(await request<ApiRegistration>(`/registrations/${id}/cancel`, { method: 'POST' })),
 };
 
 export const ticketService = {
-  get: (id: string) => 
-    request<Ticket>(`/tickets/${id}`),
+  get: async (id: string) => 
+    ticket(await request<ApiTicket>(`/tickets/${id}`)),
 
-  forRegistration: (id: string) => 
-    request<Ticket>(`/registrations/${id}/ticket`),
+  forRegistration: async (id: string) => 
+    ticket(await request<ApiTicket>(`/registrations/${id}/ticket`)),
 };
 
 export const checkinService = {
-  checkin: (code: string, _u: User) => 
-    request<CheckIn>('/checkins', {
-      method: 'POST',
-      body: JSON.stringify({ ticket_code: code }),
-    }),
+  checkin: async (code: string, _u: User) =>
+    checkin(
+      await request<ApiCheckin>('/checkins', {
+        method: 'POST',
+        body: JSON.stringify({ ticket_code: code }),
+      })
+    ),
 };
 
 export const organizerService = {
   dashboard: async () => {
-    type DashboardResponse = {
+    const data = await request<{
       events: ApiEvent[];
       total_registrations: number;
       total_checkins: number;
-    };
+    }>('/organizer/dashboard');
 
-    const data = await request<DashboardResponse>('/organizer/dashboard');
     return {
       ...data,
-      events: data.events.map(mapEvent),
+      events: data.events.map(event),
     };
   },
 };
