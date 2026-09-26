@@ -113,6 +113,22 @@ function RoleGate({ roles, children }: { roles: Role[]; children: React.ReactNod
   return roles.includes(user.role)?<>{children}</>:<Navigate to={homePath(user.role)} replace/>
 }
 
+function ConfirmDialog({open,title,message,confirmLabel='Confirm',danger,busy,onConfirm,onCancel}:{
+  open:boolean;title:string;message:string;confirmLabel?:string;danger?:boolean;busy?:boolean
+  onConfirm:()=>void;onCancel:()=>void
+}){
+  if(!open)return null
+  return <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-box" onClick={e=>e.stopPropagation()}>
+      <h3>{title}</h3><p>{message}</p>
+      <div className="modal-actions">
+        <button className="secondary" disabled={busy} onClick={onCancel}>Back</button>
+        <button className={danger?'text-button danger':'primary'} disabled={busy} onClick={onConfirm}>{busy?'Please wait…':confirmLabel}</button>
+      </div>
+    </div>
+  </div>
+}
+
 // Components
 function EventCard({ event }: { event: Event }) {
   return (
@@ -213,26 +229,37 @@ function EventDetail() {
   const { data: event, loading, error, reload } = useAsync(() => eventService.getEvent(id), [id]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmOpen,setConfirmOpen]=useState(false);
   const navigate = useNavigate();
 
-  if (loading) return <Layout><State text="Loading event…" /></Layout>;
-  if (error || !event) return <Layout><State text="Event not found." /></Layout>;
+  if (loading) return <Layout><State text="Loading event…"/></Layout>;
+  if (error || !event) return <Layout><State text="Event not found."/></Layout>;
 
   const register = async () => {
-    if (!user) return navigate('/login');
     setBusy(true);
     try {
-      const res = await registrationService.register(event.id, user);
+      const res = await registrationService.register(event.id, user!);
       navigate(`/tickets/${res.ticket.id}`);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
+      setConfirmOpen(false);
       void reload();
     }
   };
 
   const unavailable = event.status !== 'PUBLISHED' && event.status !== 'ONGOING';
+  const soldOut = event.registeredCount >= event.capacity;
+
+  const buttonLabel = soldOut
+    ? 'Sold out'
+    : busy
+    ? 'Registering…'
+    : unavailable
+    ? 'Registration unavailable'
+    : 'Register now';
+
 
   return (
     <Layout>
@@ -255,21 +282,25 @@ function EventDetail() {
             </p>
           </div>
           {message && <div className="notice error">{message}</div>}
-          <button
+           <button
             className="primary"
-            disabled={busy || unavailable || event.registeredCount >= event.capacity}
-            onClick={register}
+            disabled={busy || unavailable || soldOut}
+            onClick={() => setConfirmOpen(true)}
           >
-            {event.registeredCount >= event.capacity
-              ? 'Sold out'
-              : busy
-              ? 'Registering…'
-              : unavailable
-              ? 'Registration unavailable'
-              : 'Register now'}
+            {buttonLabel}
           </button>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirm registration"
+        message={`Register for "${event.title}"? A ticket will be issued immediately after confirming.`}
+        confirmLabel="Register"
+        busy={busy}
+        onConfirm={register}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </Layout>
   );
 }

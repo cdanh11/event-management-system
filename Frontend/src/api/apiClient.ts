@@ -1,6 +1,63 @@
-import type { ApiError } from '../types'
-const baseUrl=import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-let accessToken:string|undefined
-export const setAccessToken=(value?:string)=>{accessToken=value}
-async function refresh(){const r=await fetch(`${baseUrl}/auth/refresh`,{method:'POST',credentials:'include'});if(!r.ok)return false;const body=await r.json() as {access_token:string};setAccessToken(body.access_token);return true}
-export async function request<T>(path:string,init:RequestInit={},retry=true):Promise<T>{const headers=new Headers(init.headers);headers.set('Content-Type','application/json');if(accessToken)headers.set('Authorization',`Bearer ${accessToken}`);let response=await fetch(`${baseUrl}${path}`,{...init,headers,credentials:'include'});if(response.status===401&&retry&&await refresh()){headers.set('Authorization',`Bearer ${accessToken}`);response=await fetch(`${baseUrl}${path}`,{...init,headers,credentials:'include'})}if(!response.ok){const body=await response.json().catch(()=>({}));const error=Object.assign(new Error(body.message??'Request failed'),{status:response.status,code:body.code??'HTTP_ERROR'}) as ApiError;throw error}return response.status===204?undefined as T:response.json() as Promise<T>}
+import type { ApiError } from '../types';
+
+const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+let accessToken: string | undefined;
+
+export const setAccessToken = (value?: string) => {
+  accessToken = value;
+};
+
+async function refresh() {
+  const r = await fetch(`${baseUrl}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  if (!r.ok) return false;
+
+  const body = (await r.json()) as { access_token: string };
+  setAccessToken(body.access_token);
+  return true;
+}
+
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  retry = true
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set('Content-Type', 'application/json');
+
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  let response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+
+  if (response.status === 401 && retry && (await refresh())) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const error = Object.assign(new Error(body.message ?? 'Request failed'), {
+      status: response.status,
+      code: body.code ?? 'HTTP_ERROR',
+    }) as ApiError;
+    throw error;
+  }
+
+  return response.status === 204
+    ? (undefined as T)
+    : (response.json() as Promise<T>);
+}

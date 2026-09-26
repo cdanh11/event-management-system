@@ -1,1 +1,25 @@
-import { useCallback, useEffect, useState } from 'react'; export function useAsync<T>(fn:()=>Promise<T>,deps:unknown[]=[]){const [data,setData]=useState<T>();const [loading,setLoading]=useState(true);const [error,setError]=useState<Error>();const run=useCallback(async()=>{setLoading(true);setError(undefined);try{setData(await fn())}catch(e){setError(e as Error)}finally{setLoading(false)}},deps);useEffect(()=>{void run()},[run]);return{data,loading,error,reload:run}}
+import { useCallback, useEffect, useState } from 'react';
+
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
+  const [data, setData] = useState<T>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+
+  const run = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      setData(await fn());
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, deps);
+
+  useEffect(() => {
+    void run();
+  }, [run]);
+
+  return { data, loading, error, reload: run };
+}

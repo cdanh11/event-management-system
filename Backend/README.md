@@ -38,28 +38,29 @@ app/
 
 ### 3.1 Lõi bắt buộc (Tầng 1A)
 
-| Yêu cầu | Nơi trong code |
-|---|---|
+| Yêu cầu                                              | Nơi trong code                                                                                       |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Pydantic model request/response + validation tự động | `schemas.py` — `Field(min_length=…)`, `EmailStr`; lỗi sai kiểu do Pydantic sinh ở tầng binding → 422 |
-| Dependency system (Depends) | `get_db` (`db.py`), `current_user`; `config` là dependency/instance dùng chung |
-| auth + phân quyền | `deps.py: current_user` (401) + `require("ORGANIZER")...` (403) |
-| async đúng chỗ | xem mục 3.3 bên dưới |
-| HTTP status/error rõ ràng | `errors.api_error` + exception handler tập trung (`main.py`) |
+| Dependency system (Depends)                          | `get_db` (`db.py`), `current_user`; `config` là dependency/instance dùng chung                       |
+| auth + phân quyền                                    | `deps.py: current_user` (401) + `require("ORGANIZER")...` (403)                                      |
+| async đúng chỗ                                       | xem mục 3.3 bên dưới                                                                                 |
+| HTTP status/error rõ ràng                            | `errors.api_error` + exception handler tập trung (`main.py`)                                         |
 
 ### 3.2 Lõi tự chọn (Tầng 1B)
 
-| Yêu cầu | Nơi trong code |
-|---|---|
-| Response model + OpenAPI có chủ đích | `response_model=...` ở mọi endpoint; `custom_openapi()` gắn security scheme Bearer để Swagger hiện nút Authorize (`main.py`) |
-| Exception handler tập trung | `@app.exception_handler(HTTPException)` + `@app.exception_handler(RequestValidationError)` (`main.py`) |
+| Yêu cầu                                       | Nơi trong code                                                                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Response model + OpenAPI có chủ đích          | `response_model=...` ở mọi endpoint; `custom_openapi()` gắn security scheme Bearer để Swagger hiện nút Authorize (`main.py`)            |
+| Exception handler tập trung                   | `@app.exception_handler(HTTPException)` + `@app.exception_handler(RequestValidationError)` (`main.py`)                                  |
 | Background task (công việc ngắn sau response) | `transition_event(...)` lên schedule `notify_attendees` khi chuyển COMPLETED; **không** dùng cho tác vụ nặng (đã chú thích rõ giới hạn) |
-| Middleware | `CORSMiddleware` (main) + `TimingLoggingMiddleware` tự viết (`middleware.py`) |
-| Lifespan/startup-shutdown | `lifespan()` trong `main.py` — log startup, `engine.dispose()` khi shutdown |
-| TestClient/httpx + dependency override | `tests/` — `conftest.py` override `get_db` bằng SQLite |
+| Middleware                                    | `CORSMiddleware` (main) + `TimingLoggingMiddleware` tự viết (`middleware.py`)                                                           |
+| Lifespan/startup-shutdown                     | `lifespan()` trong `main.py` — log startup, `engine.dispose()` khi shutdown                                                             |
+| TestClient/httpx + dependency override        | `tests/` — `conftest.py` override `get_db` bằng SQLite                                                                                  |
 
 ### 3.3 Async "đúng chỗ" và dependency graph
 
 **Nguyên tắc đang áp dụng:**
+
 - Endpoint dùng SQLAlchemy **sync** → khai báo `def` (FastAPI chạy trong
   threadpool, không chặn event loop). Ví dụ: `login`, `register`, `checkin`.
 - Endpoint **chỉ có** network I/O → `async def` và `await` một tác vụ awaitable thật.
@@ -69,6 +70,7 @@ app/
 - `GET /health` là `def` vì không có I/O gì để await.
 
 **Dependency graph của endpoint ví dụ `POST /events` (create_event):**
+
 ```
 create_event
  ├── require("ORGANIZER")  (factory dependency - phân quyền)
@@ -79,24 +81,25 @@ create_event
 ```
 
 **Câu hỏi tự kiểm — đáp án rút gọn:**
-1. *Endpoint nào nên async, endpoint nào không?* → async khi có covert I/O awaitable
+
+1. _Endpoint nào nên async, endpoint nào không?_ → async khi có covert I/O awaitable
    (`/notify`); các endpoint còn lại sync vì DB là SQLAlchemy sync.
-2. *Dependency được tạo ở đâu và dùng lại thế nào?* → `db.py` (get_db),
+2. _Dependency được tạo ở đâu và dùng lại thế nào?_ → `db.py` (get_db),
    `deps.py` (current_user, require). Ro dùng lại nhờ khai báo `Depends(...)`
    trong tham số hàm ở bất kỳ router nào.
-3. *Model input sai kiểu thì lỗi sinh ở tầng nào?* → Pydantic validate ngay khi
+3. _Model input sai kiểu thì lỗi sinh ở tầng nào?_ → Pydantic validate ngay khi
    bind request body, ném `RequestValidationError` TRƯỚC khi endpoint chạy;
    handler tập trung (`main.py`) đóng gói thành `{status:422, code:VALIDATION_ERROR, details}`.
 
 ## 4. Vòng đời sự kiện (Create–Cancel–Reschedule–Complete–Notify)
 
-| Bước | Endpoint | Ghi chú |
-|---|---|---|
-| Create | `POST /events` | organizer, status khởi tạo DRAFT |
-| Cancel | `POST /registrations/{id}/cancel` | hủy đăng ký + hủy vé + trả slot |
-| Reschedule | `PATCH /events/{id}` | đổi start/end time, validate thời gian |
-| Complete | `POST /events/{id}/transition` → COMPLETED | kích hoạt background task Notify |
-| Notify | `POST /events/{id}/notify` (async) | gửi email/webhook; transition cũng tự gửi qua background task |
+| Bước       | Endpoint                                   | Ghi chú                                                       |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------- |
+| Create     | `POST /events`                             | organizer, status khởi tạo DRAFT                              |
+| Cancel     | `POST /registrations/{id}/cancel`          | hủy đăng ký + hủy vé + trả slot                               |
+| Reschedule | `PATCH /events/{id}`                       | đổi start/end time, validate thời gian                        |
+| Complete   | `POST /events/{id}/transition` → COMPLETED | kích hoạt background task Notify                              |
+| Notify     | `POST /events/{id}/notify` (async)         | gửi email/webhook; transition cũng tự gửi qua background task |
 
 ## 5. Test
 

@@ -37,7 +37,7 @@ def current_user(
 
     try:
         claims = decode_access(credentials.credentials)
-        user = db.get(User, claims["sub"])
+        user = db.get(User, claims["sub"]) #sub = uID được định nghĩa trong claim
     except Exception:
         user = None
 
