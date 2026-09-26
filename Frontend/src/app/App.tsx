@@ -113,8 +113,8 @@ function RoleGate({ roles, children }: { roles: Role[]; children: React.ReactNod
   return roles.includes(user.role)?<>{children}</>:<Navigate to={homePath(user.role)} replace/>
 }
 
-function ConfirmDialog({open,title,message,confirmLabel='Confirm',danger,busy,onConfirm,onCancel}:{
-  open:boolean;title:string;message:string;confirmLabel?:string;danger?:boolean;busy?:boolean
+function ConfirmDialog({open,title,message,confirmLabel='Confirm',busy,onConfirm,onCancel}:{
+  open:boolean;title:string;message:string;confirmLabel?:string;busy?:boolean
   onConfirm:()=>void;onCancel:()=>void
 }){
   if(!open)return null
@@ -123,7 +123,7 @@ function ConfirmDialog({open,title,message,confirmLabel='Confirm',danger,busy,on
       <h3>{title}</h3><p>{message}</p>
       <div className="modal-actions">
         <button className="secondary" disabled={busy} onClick={onCancel}>Back</button>
-        <button className={danger?'text-button danger':'primary'} disabled={busy} onClick={onConfirm}>{busy?'Please wait…':confirmLabel}</button>
+        <button className="primary" disabled={busy} onClick={onConfirm}>{busy?'Please wait…':confirmLabel}</button>
       </div>
     </div>
   </div>
@@ -310,8 +310,25 @@ function Registrations() {
   const { data: regs, loading, reload } = useAsync(() => registrationService.mine(user!.id), [user?.id]);
   const { data: events } = useAsync(eventService.getEvents, []);
   const [msg, setMsg] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; title: string } | null>(null);
+  const [busyCancel, setBusyCancel] = useState(false);
+  const nav = useNavigate();  
 
   if (loading) return <Layout><State text="Loading your registrations…" /></Layout>;
+
+  const doCancel = async () => {
+    if (!cancelTarget) return;
+    setBusyCancel(true);
+    try {
+      await registrationService.cancel(cancelTarget.id);
+      setMsg('Registration cancelled and ticket invalidated.');
+      void reload();
+    } finally {
+      setBusyCancel(false);
+      setCancelTarget(null);
+    }
+  };
+
 
   return (
     <Layout>
@@ -340,18 +357,14 @@ function Registrations() {
                         className="secondary"
                         onClick={async () => {
                           const t = await ticketService.forRegistration(r.id);
-                          window.location.assign(`/tickets/${t.id}`);
+                          nav(`/tickets/${t.id}`);
                         }}
                       >
                         View ticket
                       </button>
                       <button
                         className="text-button"
-                        onClick={async () => {
-                          await registrationService.cancel(r.id);
-                          setMsg('Registration cancelled and ticket invalidated.');
-                          void reload();
-                        }}
+                        onClick={() => setCancelTarget({ id: r.id, title: e?.title ?? 'this event' })}
                       >
                         Cancel
                       </button>
@@ -365,6 +378,16 @@ function Registrations() {
           <State text="You have no registrations yet." />
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel registration"
+        message={`Cancel your registration for "${cancelTarget?.title}"? Your ticket will be invalidated immediately.`}
+        confirmLabel="Cancel registration"
+        busy={busyCancel}
+        onConfirm={doCancel}
+        onCancel={() => setCancelTarget(null)}
+      />
     </Layout>
   );
 }
