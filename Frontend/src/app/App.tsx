@@ -10,7 +10,7 @@ import {
   checkinService,
   organizerService,
 } from '../services/services';
-import type { Event, EventStatus, Role } from '../types';
+import type { Event, EventStatus, Registration, Role } from '../types';
 
 // Helpers
 const formatDate = (v: string) =>
@@ -227,13 +227,29 @@ function EventDetail() {
   const { id = '' } = useParams();
   const { user } = useAuth();
   const { data: event, loading, error, reload } = useAsync(() => eventService.getEvent(id), [id]);
+  const { data: myRegs } = useAsync(
+    () => (user ? registrationService.mine(user.id) : Promise.resolve([] as Registration[])),
+    [user?.id]
+  );
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmOpen,setConfirmOpen]=useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const navigate = useNavigate();
 
   if (loading) return <Layout><State text="Loading event…"/></Layout>;
   if (error || !event) return <Layout><State text="Event not found."/></Layout>;
+
+  const myReg = myRegs?.find(r => r.eventId === event.id);
+  const full = event.registeredCount >= event.capacity;
+  const isOpen = event.status === 'PUBLISHED';
+  const disabled = busy || full || !isOpen || !!myReg;
+
+  let label = 'Register now';
+  if (full) label = 'Sold out';
+  else if (myReg?.status === 'REGISTERED') label = 'Already registered';
+  else if (myReg?.status === 'CANCELLED') label = 'Registration closed';
+  else if (!isOpen) label = 'Registration unavailable';
+  else if (busy) label = 'Registering…';
 
   const register = async () => {
     setBusy(true);
@@ -249,16 +265,11 @@ function EventDetail() {
     }
   };
 
-  const unavailable = event.status !== 'PUBLISHED' && event.status !== 'ONGOING';
-  const soldOut = event.registeredCount >= event.capacity;
-
-  const buttonLabel = soldOut
-    ? 'Sold out'
-    : busy
-    ? 'Registering…'
-    : unavailable
-    ? 'Registration unavailable'
-    : 'Register now';
+  const viewTicket = async () => {
+    if (!myReg) return;
+    const t = await ticketService.forRegistration(myReg.id);
+    navigate(`/tickets/${t.id}`);
+  };
 
 
   return (
@@ -282,13 +293,16 @@ function EventDetail() {
             </p>
           </div>
           {message && <div className="notice error">{message}</div>}
-           <button
-            className="primary"
-            disabled={busy || unavailable || soldOut}
-            onClick={() => setConfirmOpen(true)}
-          >
-            {buttonLabel}
+
+          <button className="primary" disabled={disabled} onClick={() => setConfirmOpen(true)}>
+            {label}
           </button>
+
+          {myReg?.status === 'REGISTERED' && (
+            <button className="secondary" style={{ marginLeft: 12 }} onClick={viewTicket}>
+              View ticket
+            </button>
+          )}
         </div>
       </section>
 
