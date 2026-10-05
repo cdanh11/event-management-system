@@ -10,8 +10,49 @@ Nguyên tắc:
 from __future__ import annotations  # cho phép kiểu tham chiếu tới model "phía sau"
 
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
+
+
+class EventStatus(str, Enum):
+    """Các trạng thái được công khai trong contract OpenAPI."""
+
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    ONGOING = "ONGOING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class NotifyMode(str, Enum):
+    WEBHOOK = "webhook"
+    SIMULATED = "simulated"
+
+
+class ApiErrorOut(BaseModel):
+    """Dạng lỗi nghiệp vụ thống nhất do exception handler trả về."""
+
+    status: int
+    code: str
+    message: str
+
+
+class ValidationErrorOut(ApiErrorOut):
+    """Lỗi 422, bổ sung chi tiết field do Pydantic phát hiện."""
+
+    details: list[dict[str, Any]]
+
+
+# --- Swagger error contract dùng chung (Phase 1) ---------------------------
+# Runtime đã trả body chuẩn {status, code, message} qua exception handler;
+# khai báo ở đây để Swagger mô tả đúng error contract từng endpoint.
+ERROR_401 = {"model": ApiErrorOut, "description": "Thiếu token hoặc token sai/hết hạn."}
+ERROR_403 = {"model": ApiErrorOut, "description": "Sai role hoặc không sở hữu tài nguyên."}
+ERROR_404 = {"model": ApiErrorOut, "description": "Tài nguyên không tồn tại."}
+ERROR_409 = {"model": ApiErrorOut, "description": "Xung đột nghiệp vụ (trùng/full)."}
+AUTH_RESPONSES = {401: ERROR_401, 403: ERROR_403}
 
 
 # ------------------------------- Auth ------------------------------------
@@ -28,6 +69,17 @@ class LoginIn(BaseModel):
     """Body của POST /auth/login."""
     email: EmailStr
     password: str
+
+
+class RegisterIn(BaseModel):
+    """Body của POST /auth/register — tự mở tài khoản ATTENDEE.
+
+    Role do server ấn định (ATTENDEE), client không được chọn role để
+    tránh tự nâng quyền thành ORGANIZER/STAFF.
+    """
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
 
 
 class TokenOut(BaseModel):
@@ -49,6 +101,13 @@ class EventIn(BaseModel):
     category: str
     banner_image: str
 
+    @model_validator(mode="after")
+    def _check_time_order(self):
+        """end_time phải sau start_time — lỗi Pydantic 422, không cần if/else ở endpoint."""
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
 
 class EventUpdateIn(BaseModel):
     """Dữ liệu cập nhật sự kiện (PATCH - mọi field đều tùy chọn).
@@ -65,13 +124,24 @@ class EventUpdateIn(BaseModel):
     category: str | None = None
     banner_image: str | None = None
 
+    @model_validator(mode="after")
+    def _check_time_order(self):
+        """Khi gửi cả 2 mốc thời gian mà end <= start -> 422 ngay tại tầng bind body."""
+        if (
+            self.start_time is not None
+            and self.end_time is not None
+            and self.end_time <= self.start_time
+        ):
+            raise ValueError("end_time must be after start_time")
+        return self
+
 
 class EventOut(EventIn):
     """Sự kiện đầy đủ trả về client (kế thừa mọi field của EventIn)."""
     id: str
     organizer_id: str
     registered_count: int
-    status: str
+    status: EventStatus
     created_at: datetime
 
 
@@ -79,12 +149,12 @@ class NotifyOut(BaseModel):
     """Kết quả gửi thông báo (POST /events/{id}/notify - endpoint async)."""
     event_id: str
     emails_sent: int
-    mode: str  # "webhook" nếu gửi thật, "simulated" nếu demo
+    mode: NotifyMode
 
 
 class TransitionIn(BaseModel):
     """Body của POST /events/{id}/transition: status đích."""
-    status: str
+    status: EventStatus
 
 
 # ---------------------------- Registrations ------------------------------

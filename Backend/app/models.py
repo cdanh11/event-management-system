@@ -8,10 +8,10 @@ Quy ước:
 - Mọi bảng dùng khóa chính UUID dạng chuỗi 36 ký tự, sinh bởi ``uid()``.
 - Cột ``status`` dùng chuỗi ngắn; các giá trị hợp lệ được ghi trong comment.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -20,6 +20,16 @@ from .db import Base
 def uid() -> str:
     """Sinh khóa chính UUID (chuỗi 36 ký tự)."""
     return str(uuid4())
+
+
+def utcnow() -> datetime:
+    """UTC hiện tại dạng naive — khớp cột DateTime (không tz) trong DB.
+
+    Thay ``utcnow()`` đã deprecated từ Python 3.12.
+    Mọi so sánh thời gian trong app dùng naive-UTC thống nhất; datetime
+    aware (client gửi ISO có 'Z') phải qua ``_as_naive`` trước khi so.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
@@ -35,9 +45,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(16), index=True)
     avatar_url: Mapped[str] = mapped_column(String(500), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utcnow, onupdate=utcnow
     )
 
 
@@ -47,6 +57,11 @@ class Event(Base):
     """
 
     __tablename__ = "events"
+    __table_args__ = (
+        # Phase 2 (Tầng 3): phục vụ truy vấn lọc status + sắp xếp start_time
+        # của GET /events (offset/cursor pagination).
+        Index("ix_events_status_start_time", "status", "start_time"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     organizer_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
@@ -60,7 +75,7 @@ class Event(Base):
     status: Mapped[str] = mapped_column(String(16), default="DRAFT", index=True)
     category: Mapped[str] = mapped_column(String(80))
     banner_url: Mapped[str] = mapped_column(String(500))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class StaffEventAssignment(Base):
@@ -75,7 +90,7 @@ class StaffEventAssignment(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     staff_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class Registration(Base):
@@ -93,7 +108,7 @@ class Registration(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id"), index=True)
     attendee_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    registered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    registered_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     status: Mapped[str] = mapped_column(String(16), default="REGISTERED")
 
 
@@ -112,7 +127,7 @@ class Ticket(Base):
     ticket_code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     qr_value: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(16), default="VALID")
-    issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    issued_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class Checkin(Base):
@@ -127,7 +142,7 @@ class Checkin(Base):
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id"), index=True)
     attendee_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     checked_in_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    checked_in_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    checked_in_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     status: Mapped[str] = mapped_column(String(16), default="SUCCESS")
 
 
@@ -141,4 +156,4 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
