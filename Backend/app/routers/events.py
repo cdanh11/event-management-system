@@ -7,17 +7,29 @@ Vòng đời sự kiện trọn vẹn phục vụ yêu cầu "Create–Reschedul
   - Notify:     POST  /events/{id}/notify       (endpoint async gửi thông báo)
 """
 from datetime import datetime
+from dataclasses import dataclass
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
-from ..deps import require
+from ..deps import bearer, get_authenticated_user, require
 from ..errors import api_error
 from ..models import Event, Registration, User
-from ..schemas import EventIn, EventOut, EventUpdateIn, NotifyOut, TransitionIn
+from ..schemas import (
+    AUTH_RESPONSES,
+    ERROR_404,
+    ERROR_409,
+    EventIn,
+    EventOut,
+    EventStatus,
+    EventUpdateIn,
+    NotifyOut,
+    TransitionIn,
+)
 from ..serializers import to_event
 from ..services.notifier import notify_attendees
 
@@ -58,19 +70,80 @@ def _registered_emails(db: Session, event_id: str) -> list[str]:
     return list(emails)
 
 
+@dataclass(frozen=True)
+class NotificationTarget:
+    """Dữ liệu đồng bộ đã chuẩn bị trước khi endpoint gửi webhook async."""
+
+    event_id: str
+    event_title: str
+    attendee_emails: list[str]
+
+
+def _notification_target(
+    event_id: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> NotificationTarget:
+    """Xác thực và đọc DB trong sync dependency, trước event loop async."""
+    user = get_authenticated_user(credentials, db)
+    if user.role != "ORGANIZER":
+        api_error(403, "FORBIDDEN", "Insufficient permission")
+
+    event = db.get(Event, event_id)
+    if event is None:
+        api_error(404, "EVENT_NOT_FOUND", "Event not found")
+    if event.organizer_id != user.id:
+        api_error(403, "FORBIDDEN", "You do not own this event")
+
+    return NotificationTarget(
+        event_id=event.id,
+        event_title=event.title,
+        attendee_emails=_registered_emails(db, event.id),
+    )
+
+
 @router.get("/events", response_model=list[EventOut], tags=["events"])
 def list_events(
-    status: str | None = None,
+    status: EventStatus | None = None,
     q: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    cursor: str | None = Query(default=None),
+    response: Response = None,  # type: ignore[assignment]  # FastAPI inject Response
     db: Session = Depends(get_db),
 ):
-    """Danh sách sự kiện, có thể lọc theo status và tìm theo title (không dấu)."""
+    """Danh sách sự kiện: lọc status, tìm title, phân trang offset hoặc cursor.
+
+    - Mặc định offset (giữ tương thích FE Phase 1).
+    - Phase 2 cursor (keyset theo ``(start_time, id)``): truyền ``cursor=<id event
+      cuối trang trước>``, server trả trang tiếp theo + header ``X-Next-Cursor``
+      (rỗng khi hết). Cursor và offset không dùng chung.
+    """
+    if cursor is not None and offset != 0:
+        api_error(400, "CURSOR_OFFSET_CONFLICT", "Use either cursor or offset, not both")
+
     stmt = select(Event)
     if status:
         stmt = stmt.where(Event.status == status)
     if q:
         stmt = stmt.where(Event.title.ilike(f"%{q}%"))
-    return [to_event(e) for e in db.scalars(stmt.order_by(Event.start_time)).all()]
+
+    if cursor is not None:
+        anchor = db.get(Event, cursor)
+        if anchor is None:
+            api_error(404, "CURSOR_NOT_FOUND", "Cursor event not found")
+        stmt = stmt.where(
+            (Event.start_time > anchor.start_time)
+            | ((Event.start_time == anchor.start_time) & (Event.id > anchor.id))
+        )
+        stmt = stmt.order_by(Event.start_time, Event.id).limit(limit)
+    else:
+        stmt = stmt.order_by(Event.start_time, Event.id).offset(offset).limit(limit)
+
+    rows = db.scalars(stmt).all()
+    if response is not None:
+        response.headers["X-Next-Cursor"] = rows[-1].id if len(rows) == limit else ""
+    return [to_event(e) for e in rows]
 
 
 @router.get("/events/{event_id}", response_model=EventOut, tags=["events"])
@@ -82,7 +155,13 @@ def get_event(event_id: str, db: Session = Depends(get_db)):
     return to_event(event)
 
 
-@router.post("/events", response_model=EventOut, status_code=201, tags=["events"])
+@router.post(
+    "/events",
+    response_model=EventOut,
+    status_code=201,
+    tags=["events"],
+    responses={**AUTH_RESPONSES},
+)
 def create_event(
     payload: EventIn,
     user: User = Depends(require("ORGANIZER")),
@@ -101,7 +180,12 @@ def create_event(
     return to_event(event)
 
 
-@router.patch("/events/{event_id}", response_model=EventOut, tags=["events"])
+@router.patch(
+    "/events/{event_id}",
+    response_model=EventOut,
+    tags=["events"],
+    responses={**AUTH_RESPONSES, 404: ERROR_404},
+)
 def reschedule_event(
     event_id: str,
     payload: EventUpdateIn,
@@ -135,7 +219,41 @@ def reschedule_event(
     return to_event(event)
 
 
-@router.post("/events/{event_id}/transition", response_model=EventOut, tags=["events"])
+@router.delete(
+    "/events/{event_id}",
+    status_code=204,
+    tags=["events"],
+    responses={**AUTH_RESPONSES, 404: ERROR_404},
+)
+def delete_event(
+    event_id: str,
+    user: User = Depends(require("ORGANIZER")),
+    db: Session = Depends(get_db),
+):
+    """Xóa sự kiện (Phase 1): chỉ ORGANIZER sở hữu và chỉ khi còn DRAFT.
+
+    Event đã PUBLISHED/ONGOING có thể đã có registration/ticket nên không
+    cho xóa cứng — dùng transition sang CANCELLED thay thế (soft-delete).
+    """
+    event = db.get(Event, event_id)
+    if event is None:
+        api_error(404, "EVENT_NOT_FOUND", "Event not found")
+    if event.organizer_id != user.id:
+        api_error(403, "FORBIDDEN", "You do not own this event")
+    if event.status != "DRAFT":
+        api_error(400, "EVENT_NOT_DELETABLE", "Only DRAFT events can be deleted")
+
+    db.delete(event)
+    db.commit()
+    return None
+
+
+@router.post(
+    "/events/{event_id}/transition",
+    response_model=EventOut,
+    tags=["events"],
+    responses={**AUTH_RESPONSES, 404: ERROR_404},
+)
 def transition_event(
     event_id: str,
     payload: TransitionIn,
@@ -172,17 +290,22 @@ def transition_event(
     return to_event(event)
 
 
-@router.post("/events/{event_id}/notify", response_model=NotifyOut, tags=["events"])
+@router.post(
+    "/events/{event_id}/notify",
+    response_model=NotifyOut,
+    tags=["events"],
+    responses={**AUTH_RESPONSES, 404: ERROR_404},
+)
 async def notify_event_now(
-    event_id: str,
-    user: User = Depends(require("ORGANIZER")),
-    db: Session = Depends(get_db),
+    target: NotificationTarget = Depends(_notification_target),
 ):
     """Gửi thông báo NGAY LẬP TỨC tới attendee — endpoint **async đúng chỗ**.
 
     Tại sao endpoint này nên là async:
-      - Toàn bộ công việc còn lại sau khi đọc DB là một phép network I/O
-        (gửi email/webhook) — có awaitable operation thật sự.
+      - Dependency sync ``_notification_target`` đã xác thực, kiểm tra quyền
+        và đọc DB trước khi handler này chạy.
+      - Toàn bộ công việc của handler là network I/O (gửi email/webhook) — có
+        awaitable operation thật sự.
       - ``await notify_attendees(...)`` chờ phản hồi HTTP của dịch vụ gửi
         thông báo; trong lúc chờ, event loop vẫn phục vụ các request khác.
 
@@ -190,16 +313,8 @@ async def notify_event_now(
     không muốn bắt client đợi; endpoint này chủ động chờ (organizer muốn gửi
     và chờ kết quả) — đây chính là "async đúng chỗ".
     """
-    event = db.get(Event, event_id)
-    if event is None:
-        api_error(404, "EVENT_NOT_FOUND", "Event not found")
-    if event.organizer_id != user.id:
-        api_error(403, "FORBIDDEN", "You do not own this event")
-
-    emails = _registered_emails(db, event.id)
-
     # ĐIỂM MẤU CHỐT: đây là await I/O thật, không block event loop.
-    sent = await notify_attendees(event.title, emails)
+    sent = await notify_attendees(target.event_title, target.attendee_emails)
 
     mode = "webhook" if settings.notify_webhook_url else "simulated"
-    return NotifyOut(event_id=event.id, emails_sent=sent, mode=mode)
+    return NotifyOut(event_id=target.event_id, emails_sent=sent, mode=mode)
