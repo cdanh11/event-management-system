@@ -1,98 +1,94 @@
-# Evently — Event Management System
+# Evently - FastAPI Event Management System
 
-Ứng dụng web quản lý sự kiện, đăng ký tham dự, cấp vé và check-in. Dự án phục vụ việc học và áp dụng FastAPI để xây dựng REST API, kết hợp frontend React và PostgreSQL.
+Evently la he thong quan ly su kien phuc vu muc tieu hoc FastAPI. Du an tap trung vao REST API co kieu du lieu ro rang, phan quyen theo vai tro, vong doi nghiep vu, PostgreSQL va kiem thu tu dong. React chi dong vai tro client de demo API end-to-end.
 
-## Công nghệ và cấu trúc
+## Pham vi
 
-- **Frontend:** React 19, TypeScript, Vite, React Router, Tailwind CSS.
-- **Backend:** Python, FastAPI, SQLAlchemy 2, Pydantic 2, Alembic.
-- **Database:** PostgreSQL, driver psycopg.
-- **Xác thực:** JWT, refresh token qua cookie HttpOnly, hash mật khẩu bằng Argon2.
-- **Kiểm thử:** pytest, TestClient/httpx, pytest-cov.
+- Quan ly Event: tao, doi lich, chuyen trang thai va gui thong bao.
+- Attendee dang ky, huy dang ky va xem ve.
+- Staff check-in ve duoc phan cong.
+- Organizer quan ly Event va staff assignment qua API.
+- Co 7 bang: `users`, `events`, `registrations`, `tickets`, `checkins`, `staff_event_assignments`, `refresh_tokens`.
 
-```text
-Project/
-├── Backend/
-│   ├── app/                 # API, models, schemas, xác thực, seed
-│   ├── alembic/             # Migration cơ sở dữ liệu
-│   ├── tests/               # Kiểm thử backend
-│   ├── .env.example
-│   └── requirements.txt
-├── Frontend/
-│   ├── src/app/             # Giao diện và routes
-│   ├── src/api/             # HTTP client và refresh token
-│   ├── src/services/        # Gọi backend API
-│   ├── src/mock/            # Dữ liệu mock cũ
-│   ├── .env.example
-│   └── package.json
-└── docs/                    # Tài liệu báo cáo
+Ngoai pham vi hien tai: thanh toan, quet QR bang camera that, email production, queue phan tan va microservice.
+
+## Cong nghe
+
+- Backend: Python, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, psycopg 3.
+- Auth: JWT access token, refresh token HttpOnly cookie, Argon2 password hash.
+- Database: PostgreSQL 16 qua Docker Compose.
+- Frontend: React, TypeScript, Vite.
+- Test: pytest, TestClient/httpx, dependency override, pytest-cov.
+- CI: GitHub Actions chay backend test/coverage va frontend lint/build.
+
+Tai lieu chi tiet:
+
+- [Backend/congnghe.md](Backend/congnghe.md): cach FastAPI duoc ap dung trong code.
+- [docs/roadmap.md](docs/roadmap.md): hien trang, khoang trong va lo trinh 2 tuan.
+- [Backend/README.md](Backend/README.md): cau truc va minh chung backend.
+
+## Chay local
+
+Yeu cau: Docker Desktop, Python 3.10+, Node.js 22+ va npm. Cac lenh duoi day dung PowerShell, bat dau tai thu muc goc project.
+
+### 1. Chay PostgreSQL
+
+```powershell
+docker compose up -d db
+docker compose ps
 ```
 
-## Cài đặt và chạy local
+Compose tu tao database/user local `evently`. PostgreSQL duoc map tai `localhost:5433` de tranh xung dot cong 5432 cua may.
 
-### 1. Chuẩn bị
+pgAdmin la tuy chon:
 
-- Python 3.10 trở lên (mã nguồn dùng cú pháp kiểu `str | None`).
-- Node.js 22.12 trở lên và npm, phù hợp với dependency frontend hiện tại.
-- PostgreSQL đang chạy; có tài khoản được phép tạo database.
-
-Các lệnh dưới đây dùng **PowerShell trên Windows**, bắt đầu tại thư mục gốc project.
-
-### 2. Tạo database
-
-Mở psql hoặc Query Tool của pgAdmin bằng tài khoản quản trị PostgreSQL, chạy từng câu lệnh nếu user/database chưa tồn tại:
-
-```sql
-CREATE USER evently WITH PASSWORD 'evently';
-CREATE DATABASE evently OWNER evently;
+```powershell
+docker compose --profile tools up -d
 ```
 
-Đây là thông tin kết nối mẫu cho local. Nếu dùng thông tin khác, cập nhật `DATABASE_URL` tương ứng.
+Mo `http://localhost:5050`, dang nhap `admin@evently.local` / `admin`. Khi them server trong pgAdmin, dung host `db`, port `5432`, user/password `evently` / `evently`.
 
-### 3. Cấu hình và chạy backend
+Dung database bang `docker compose down`. Chi dung `docker compose down -v` khi muon xoa toan bo du lieu local.
+
+### 2. Chay backend
 
 ```powershell
 cd Backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
-```
-
-Nếu đã có `.env`, giữ cấu hình hiện tại thay vì sao chép đè. Kiểm tra `Backend/.env`:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://evently:evently@localhost:5432/evently
-JWT_SECRET=replace-with-a-long-random-secret
-ACCESS_TOKEN_MINUTES=15
-REFRESH_TOKEN_DAYS=7
-FRONTEND_ORIGIN=http://localhost:5173
-```
-
-Đặt `JWT_SECRET` thành chuỗi bí mật ngẫu nhiên riêng. Vẫn trong thư mục `Backend`, tạo schema, nạp dữ liệu demo và chạy API:
-
-```powershell
 .\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe -m app.seed
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-Seed tạo 6 tài khoản, 6 sự kiện, phân công nhân viên và một vé mẫu. **Nếu database đã có bất kỳ user nào, seed bỏ qua toàn bộ việc nạp dữ liệu** và in `Database already seeded`. Script không tạo PostgreSQL database; cần hoàn tất bước 2 trước.
+`Backend/.env` local can dung cau hinh sau:
 
-- API: [http://localhost:8000](http://localhost:8000).
-- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs).
-- Kiểm tra API: [http://localhost:8000/health](http://localhost:8000/health), trả `{"status":"ok"}`. Endpoint này không kiểm tra kết nối database.
+```dotenv
+DATABASE_URL=postgresql+psycopg://evently:evently@localhost:5433/evently
+JWT_SECRET=replace-with-a-long-random-secret
+ACCESS_TOKEN_MINUTES=15
+REFRESH_TOKEN_DAYS=7
+FRONTEND_ORIGIN=http://localhost:5173
+NOTIFY_WEBHOOK_URL=
+```
 
-### 4. Cấu hình và chạy frontend
+- API: `http://localhost:8000`
+- Swagger/OpenAPI: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
 
-Mở **terminal thứ hai** tại thư mục gốc project:
+### 3. Chay frontend
+
+Mo terminal thu hai tai thu muc goc project:
 
 ```powershell
 cd Frontend
 npm ci
 Copy-Item .env.example .env
+npm run dev -- --port 5173
 ```
 
-Nếu đã có `.env`, chỉ kiểm tra và cập nhật khi cần. Nội dung `Frontend/.env`:
+`Frontend/.env`:
 
 ```dotenv
 VITE_API_BASE_URL=http://localhost:8000
@@ -112,13 +108,13 @@ Mở [http://localhost:5173](http://localhost:5173). Giữ hai terminal chạy t
 
 Các tài khoản sau chỉ có sau khi seed thành công; tất cả dùng mật khẩu **`123456`**:
 
-| Vai trò   | Email                           | Mục đích                                     |
-| --------- | ------------------------------- | -------------------------------------------- |
-| ATTENDEE  | `attendee@demo.com`             | Đăng ký sự kiện; có sẵn vé AI Product Meetup |
-| ATTENDEE  | `linh@demo.com`, `huy@demo.com` | Thử với người tham dự khác                   |
-| STAFF     | `staff@demo.com`                | Check-in cho AI Product Meetup               |
-| STAFF     | `khanh.staff@demo.com`          | Được phân công Vietnam Tech Conference 2026  |
-| ORGANIZER | `organizer@demo.com`            | Quản lý sự kiện mẫu và tạo sự kiện mới       |
+| Vai trò | Email | Mục đích |
+| --- | --- | --- |
+| ATTENDEE | `attendee@demo.com` | Đăng ký sự kiện; có sẵn vé AI Product Meetup |
+| ATTENDEE | `linh@demo.com`, `huy@demo.com` | Thử với người tham dự khác |
+| STAFF | `staff@demo.com` | Check-in cho AI Product Meetup |
+| STAFF | `khanh.staff@demo.com` | Được phân công Vietnam Tech Conference 2026 |
+| ORGANIZER | `organizer@demo.com` | Quản lý sự kiện mẫu và tạo sự kiện mới |
 
 Vào `/login`, nhập email và mật khẩu rồi chọn **Sign in**. Dùng biểu tượng đăng xuất ở góc phải để đổi vai trò. Hiện chưa có chức năng tự đăng ký tài khoản mới.
 
@@ -164,24 +160,24 @@ Số lượng đăng ký trên sự kiện seed là dữ liệu minh họa, khô
 2. Nhập body với tài khoản đúng vai trò, rồi chọn **Execute**:
 
    ```json
-   { "email": "organizer@demo.com", "password": "123456" }
+   {"email": "organizer@demo.com", "password": "123456"}
    ```
 
 3. Sao chép `access_token` trong response, bấm **Authorize**, dán token vào ô HTTPBearer (không thêm tiền tố `Bearer`). Khi đổi vai trò, đăng nhập lại và thay token trong **Authorize**.
 4. Dùng các API sau; lấy ID từ response thay vì dùng tên sự kiện hoặc email thay ID:
 
-| Thao tác                | Endpoint                                      | Vai trò / dữ liệu                                                         |
-| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
-| Danh sách sự kiện và ID | `GET /events`                                 | Không cần đăng nhập                                                       |
-| Đăng ký sự kiện         | `POST /events/{event_id}/register`            | ATTENDEE; response có vé và `ticket_code`                                 |
-| Đăng ký cá nhân         | `GET /registrations/me`                       | ATTENDEE; lấy ID đăng ký                                                  |
-| Lấy vé đã đăng ký       | `GET /registrations/{registration_id}/ticket` | Người sở hữu vé; đọc `ticket_code`                                        |
-| Dời lịch/chỉnh sửa      | `PATCH /events/{event_id}`                    | ORGANIZER sở hữu sự kiện; gửi trường cần đổi như `start_time`, `end_time` |
-| ID người dùng hiện tại  | `GET /auth/me`                                | Đăng nhập STAFF để lấy ID nhân viên                                       |
-| Phân công nhân viên     | `POST /events/{event_id}/staff`               | ORGANIZER sở hữu sự kiện; body `{"staff_id":"ID nhân viên"}`              |
-| Sự kiện được phân công  | `GET /staff/events`                           | STAFF                                                                     |
-| Check-in                | `POST /checkins`                              | STAFF được phân công; body `{"ticket_code":"AI-MEET-2026"}`               |
-| Gửi thông báo           | `POST /events/{event_id}/notify`              | ORGANIZER sở hữu sự kiện                                                  |
+| Thao tác | Endpoint | Vai trò / dữ liệu |
+| --- | --- | --- |
+| Danh sách sự kiện và ID | `GET /events` | Không cần đăng nhập |
+| Đăng ký sự kiện | `POST /events/{event_id}/register` | ATTENDEE; response có vé và `ticket_code` |
+| Đăng ký cá nhân | `GET /registrations/me` | ATTENDEE; lấy ID đăng ký |
+| Lấy vé đã đăng ký | `GET /registrations/{registration_id}/ticket` | Người sở hữu vé; đọc `ticket_code` |
+| Dời lịch/chỉnh sửa | `PATCH /events/{event_id}` | ORGANIZER sở hữu sự kiện; gửi trường cần đổi như `start_time`, `end_time` |
+| ID người dùng hiện tại | `GET /auth/me` | Đăng nhập STAFF để lấy ID nhân viên |
+| Phân công nhân viên | `POST /events/{event_id}/staff` | ORGANIZER sở hữu sự kiện; body `{"staff_id":"ID nhân viên"}` |
+| Sự kiện được phân công | `GET /staff/events` | STAFF |
+| Check-in | `POST /checkins` | STAFF được phân công; body `{"ticket_code":"AI-MEET-2026"}` |
+| Gửi thông báo | `POST /events/{event_id}/notify` | ORGANIZER sở hữu sự kiện |
 
 Thông báo mặc định chạy mô phỏng (`mode: simulated`). Để gửi HTTP webhook thật, đặt thêm `NOTIFY_WEBHOOK_URL` trong `Backend/.env` và khởi động lại backend. Chuyển sang `COMPLETED` cũng lên lịch thông báo cho người còn đăng ký; hiện chưa có cấu hình gửi email trực tiếp.
 
@@ -190,29 +186,54 @@ Thông báo mặc định chạy mô phỏng (`mode: simulated`). Để gửi HT
 Chạy kiểm thử backend từ thư mục `Backend` (test sử dụng SQLite trong bộ nhớ qua dependency override):
 
 ```powershell
+cd Backend
 .\.venv\Scripts\python.exe -m pytest --cov=app --cov-report=term
 ```
 
-Kiểm tra và build frontend từ thư mục `Frontend`:
+Frontend:
 
 ```powershell
+cd Frontend
 npm run lint
 npm run build
-npm run preview
 ```
 
-Preview phục vụ bản build ở URL được in trong terminal; vẫn cần backend để đăng nhập và thao tác dữ liệu.
+Kiem tra demo E2E:
 
-## Lỗi thường gặp
+1. Organizer tao Event, Publish, Reschedule, Start, Complete va Notify.
+2. Attendee dang ky Event `PUBLISHED`, mo ve va huy dang ky.
+3. Staff dung ma ve duoc phan cong de check-in mot lan.
+4. Mo Swagger, login, Authorize bang access token va thu response 401/403/409/422.
 
-| Hiện tượng                                  | Cách kiểm tra                                                                                                     |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Không kết nối được PostgreSQL               | Kiểm tra dịch vụ PostgreSQL, database đã tạo, user/mật khẩu/cổng trong `DATABASE_URL`.                            |
-| Báo thiếu bảng dữ liệu                      | Chạy Alembic từ thư mục `Backend`, kiểm tra đang trỏ đúng database.                                               |
-| Tài khoản demo đăng nhập thất bại           | Kiểm tra đã seed thành công; seed bỏ qua nếu database đã có user.                                                 |
-| `Failed to fetch` hoặc lỗi CORS             | Kiểm tra backend đang chạy, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN` và hostname; khởi động lại sau khi sửa `.env`. |
-| `REGISTRATION_CLOSED`                       | Chọn sự kiện `PUBLISHED`; backend không cho đăng ký khi `ONGOING`.                                                |
-| `FORBIDDEN` / `CHECKIN_CLOSED` khi check-in | Dùng STAFF đã được phân công và chuyển sự kiện sang `ONGOING`.                                                    |
-| Vé thiếu mã hoặc check-in lỗi hiển thị ngày | Xem ghi chú về tên trường API ở phần hướng dẫn; dùng Swagger để đọc kết quả.                                      |
+## OpenAPI va bao mat
+
+- OpenAPI duoc sinh tu Pydantic response/request model tai `/docs`.
+- Endpoint public nhu `POST /auth/login`, `POST /auth/refresh`, `GET /events`, `GET /health` khong yeu cau Bearer token trong Swagger.
+- Endpoint can xac thuc nhu `GET /auth/me`, tao Event, dang ky, check-in va Notify hien HTTP Bearer security.
+- Loi nghiep vu su dung dang `{status, code, message}`; loi Pydantic 422 bo sung `details`.
+- Secret trong Compose va `.env.example` chi danh cho local development. Khong dung chung secret/password nay khi deploy.
+
+## Cau truc
+
+```text
+Project/
+|- Backend/                 # FastAPI app, Alembic, seed, pytest
+|- Frontend/                # React client goi REST API that
+|- docs/                    # roadmap va tai lieu bao cao se bo sung
+|- compose.yaml             # PostgreSQL va pgAdmin profile
+`- .github/workflows/ci.yml # CI backend + frontend
+```
+
+## Loi thuong gap
+
+| Hiện tượng | Cách kiểm tra |
+| --- | --- |
+| Không kết nối được PostgreSQL | Kiểm tra dịch vụ PostgreSQL, database đã tạo, user/mật khẩu/cổng trong `DATABASE_URL`. |
+| Báo thiếu bảng dữ liệu | Chạy Alembic từ thư mục `Backend`, kiểm tra đang trỏ đúng database. |
+| Tài khoản demo đăng nhập thất bại | Kiểm tra đã seed thành công; seed bỏ qua nếu database đã có user. |
+| `Failed to fetch` hoặc lỗi CORS | Kiểm tra backend đang chạy, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN` và hostname; khởi động lại sau khi sửa `.env`. |
+| `REGISTRATION_CLOSED` | Chọn sự kiện `PUBLISHED`; backend không cho đăng ký khi `ONGOING`. |
+| `FORBIDDEN` / `CHECKIN_CLOSED` khi check-in | Dùng STAFF đã được phân công và chuyển sự kiện sang `ONGOING`. |
+| Vé thiếu mã hoặc check-in lỗi hiển thị ngày | Xem ghi chú về tên trường API ở phần hướng dẫn; dùng Swagger để đọc kết quả. |
 
 Xem thêm cấu trúc backend và nội dung thực hành FastAPI trong [Backend/README.md](Backend/README.md).
