@@ -5,14 +5,17 @@ phân quyền theo role (ORGANIZER / STAFF / ATTENDEE).
 
 ## 1. Chạy dự án
 
-1. Tạo PostgreSQL database `evently` và copy `.env.example` thành `.env`.
-2. `python -m venv .venv`, kích hoạt, rồi `pip install -r requirements.txt`.
-3. Tạo schema: `alembic upgrade head` (hoặc `python -m app.seed` để nạp dữ liệu demo).
-4. Chạy: `uvicorn app.main:app --reload --port 8000`.
+1. Tại thư mục gốc project, chạy `docker compose up -d db` để tạo PostgreSQL local.
+2. Copy `.env.example` thành `.env`.
+3. `python -m venv .venv`, kích hoạt, rồi `pip install -r requirements.txt`.
+4. Tạo schema: `python -m alembic upgrade head`, nạp demo: `python -m app.seed`.
+5. Chạy: `python -m uvicorn app.main:app --reload --port 8000`.
 
 - Swagger/OpenAPI: `http://localhost:8000/docs`
 - Tài khoản demo (pass `123456`): `attendee@demo.com`, `staff@demo.com`, `organizer@demo.com`
 - Chạy test + đo coverage: `pytest --cov=app --cov-report=term`
+- PostgreSQL compose map `localhost:5433` vao port `5432` cua container.
+- pgAdmin la cong cu tuy chon: `docker compose --profile tools up -d`, mo `http://localhost:5050`, dang nhap `admin@evently.local` / `admin`, sau do ket noi host `db`, port `5432`.
 
 ## 2. Cấu trúc code
 
@@ -64,9 +67,10 @@ app/
 - Endpoint dùng SQLAlchemy **sync** → khai báo `def` (FastAPI chạy trong
   threadpool, không chặn event loop). Ví dụ: `login`, `register`, `checkin`.
 - Endpoint **chỉ có** network I/O → `async def` và `await` một tác vụ awaitable thật.
-  Ví dụ: `POST /events/{id}/notify` (`routers/events.py`) await
-  `notify_attendees(...)` (`services/notifier.py`) — chờ phản hồi HTTP webhook
-  (hoặc `asyncio.sleep` mô phỏng khi chưa cấu hình `NOTIFY_WEBHOOK_URL`).
+  Ví dụ: sync dependency `_notification_target` của `POST /events/{id}/notify`
+  chuẩn bị auth/quyền/dữ liệu DB; handler async sau đó chỉ await
+  `notify_attendees(...)` (`services/notifier.py`) để chờ HTTP webhook (hoặc
+  `asyncio.sleep` mô phỏng khi chưa cấu hình `NOTIFY_WEBHOOK_URL`).
 - `GET /health` là `def` vì không có I/O gì để await.
 
 **Dependency graph của endpoint ví dụ `POST /events` (create_event):**
