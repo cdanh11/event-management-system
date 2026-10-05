@@ -13,6 +13,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -22,6 +23,7 @@ from .db import engine
 from .middleware import TimingLoggingMiddleware
 from .routers import api_router
 from .config import settings
+from .services.notifier import close_notifier_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("evently")
@@ -36,7 +38,8 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Lifespan startup: ứng dụng Evently bắt đầu khởi chạy.")
     yield
-    logger.info("Lifespan shutdown: đóng connection pool database.")
+    logger.info("Lifespan shutdown: đóng connection pool database + notifier client.")
+    await close_notifier_client()
     engine.dispose() #dọn dẹp db
 
 
@@ -53,6 +56,7 @@ app = FastAPI(
         {"name": "registrations", "description": "Đăng ký tham dự / hủy đăng ký"},
         {"name": "tickets", "description": "Vé sự kiện"},
         {"name": "checkins", "description": "Check-in tại cửa ra vào"},
+        {"name": "realtime", "description": "Occupancy realtime qua WebSocket"},
         {"name": "staff", "description": "Sự kiện của staff"},
         {"name": "assignments", "description": "Gán staff vào sự kiện"},
         {"name": "system", "description": "Endpoint kiểm tra sức khỏe"},
@@ -99,23 +103,29 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
     -> ném RequestValidationError TRƯỚC khi endpoint được gọi. Handler này
     đóng gói lỗi đó về dạng chuẩn + kèm chi tiết từng field lỗi.
     """
+    # Phase 1: model_validator đưa ValueError vào ctx.error — phải sanitize
+    # trước khi json.dumps, nếu không handler 422 tự crash thành 500.
+    details = jsonable_encoder(exc.errors(), custom_encoder={ValueError: str})
     return JSONResponse(
         status_code=422,
         content={
             "status": 422,
             "code": "VALIDATION_ERROR",
             "message": "Request payload is invalid",
-            "details": exc.errors(),
+            "details": details,
         },
     )
 
 
-# ---------------- OpenAPI: gắn security scheme JWT ------------------------
+# ---------------- OpenAPI: security scheme JWT -----------------------------
 def custom_openapi():
-    """Bổ sung security scheme "HTTP Bearer" vào schema OpenAPI.
+    """Bổ sung security scheme "HTTP Bearer" vao schema OpenAPI.
 
-    Mặc định FastAPI không tự khai báo security từ HTTPBearer dependency;
-    phần này làm cho Swagger (docs) hiện nút Authorize và mô tả đúng auth."""
+    FastAPI tu nhan ``HTTPBearer`` trong dependency graph va gan security cho
+    tung operation can xac thuc. Chi khai bao scheme o day, KHONG dat
+    ``schema["security"]`` toan cuc: login, refresh, health va GET /events la
+    endpoint public va phai hien dung trong Swagger.
+    """
     if app.openapi_schema is not None:
         return app.openapi_schema
 
@@ -125,12 +135,13 @@ def custom_openapi():
         description=app.description,
         routes=app.routes,
     )
-    schema["components"]["securitySchemes"] = {
-        "HTTPBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
-    }
-    schema["security"] = [{"HTTPBearer": []}] # Áp dụng scheme đó làm security mặc định cho toàn bộ API
+    components = schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    security_schemes.setdefault(
+        "HTTPBearer", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    )
 
-    app.openapi_schema = schema # Lưu lại vào cache để lần gọi sau không build lại
+    app.openapi_schema = schema
     return schema
 
 
