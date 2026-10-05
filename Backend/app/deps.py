@@ -30,6 +30,17 @@ def current_user(
          └── get_db (mở Session từ SessionLocal, đóng sau request)
          Sau đó: decode_access(token) -> db.get(User, sub)
     """
+    return get_authenticated_user(credentials, db)
+
+
+def get_authenticated_user(
+    credentials: HTTPAuthorizationCredentials | None, db: Session
+) -> User:
+    """Xác thực token với một Session đã được dependency cung cấp.
+
+    Hàm tách riêng để dependency chuyên biệt có thể chuẩn bị dữ liệu đồng bộ
+    trước khi một endpoint async chỉ thực hiện network I/O.
+    """
     if credentials is None:
         raise HTTPException(
             401, detail={"code": "UNAUTHORIZED", "message": "Authentication required"}

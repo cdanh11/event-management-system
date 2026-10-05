@@ -4,7 +4,7 @@ Lưu ý async: các endpoint ở đây dùng SQLAlchemy **sync** Session nên kh
 ``def`` (sync) — FastAPI sẽ chạy chúng trong threadpool, không chặn event loop.
 Đây chính là "biết khi nào KHÔNG cần async".
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Cookie, Depends, Response
 from sqlalchemy import select
@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import get_db
 from ..deps import current_user
-from ..models import RefreshToken, User
-from ..schemas import LoginIn, TokenOut, UserOut
-from ..security import access_token, digest, new_refresh, verify_password
+from ..models import RefreshToken, User, utcnow
+from ..schemas import LoginIn, RegisterIn, TokenOut, UserOut
+from ..security import access_token, digest, hash_password, new_refresh, verify_password
 from ..serializers import to_user
 
 router = APIRouter()
@@ -31,7 +31,7 @@ def issue_refresh_cookie(response: Response, db: Session, user: User) -> None:
         RefreshToken(
             user_id=user.id,
             token_hash=digest(raw),
-            expires_at=datetime.utcnow() + timedelta(days=settings.refresh_days),
+            expires_at=utcnow() + timedelta(days=settings.refresh_days),
         )
     )
     db.flush()
@@ -69,6 +69,29 @@ def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
     return _token_body(user, access_token(user.id, user.role))
 
 
+@router.post("/auth/register", response_model=TokenOut, status_code=201, tags=["auth"])
+def register_account(payload: RegisterIn, response: Response, db: Session = Depends(get_db)):
+    """Tự đăng ký tài khoản ATTENDEE mới + đăng nhập luôn (trả token + refresh cookie)."""
+    from ..errors import api_error
+
+    email = payload.email.lower()
+    if db.scalar(select(User).where(User.email == email)) is not None:
+        api_error(409, "EMAIL_TAKEN", "Email is already registered")
+
+    user = User(
+        name=payload.name.strip(),
+        email=email,
+        role="ATTENDEE",
+        avatar_url="",
+        password_hash=hash_password(payload.password),
+    )
+    db.add(user)
+    db.flush()
+    issue_refresh_cookie(response, db, user)
+    db.commit()
+    return _token_body(user, access_token(user.id, user.role))
+
+
 @router.post("/auth/refresh", response_model=TokenOut, tags=["auth"])
 def refresh(
     response: Response,
@@ -82,11 +105,11 @@ def refresh(
         api_error(401, "UNAUTHORIZED", "Refresh token missing")
 
     row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == digest(evently_refresh)))
-    if row is None or row.revoked_at is not None or row.expires_at < datetime.utcnow():
+    if row is None or row.revoked_at is not None or row.expires_at < utcnow():
         api_error(401, "UNAUTHORIZED", "Refresh token expired")
 
     user = db.get(User, row.user_id)
-    row.revoked_at = datetime.utcnow()  # vô hiệu token vừa dùng
+    row.revoked_at = utcnow()  # vô hiệu token vừa dùng
 
     issue_refresh_cookie(response, db, user)
     db.commit()
@@ -103,7 +126,7 @@ def logout(
     if evently_refresh:
         row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == digest(evently_refresh)))
         if row is not None:
-            row.revoked_at = datetime.utcnow()
+            row.revoked_at = utcnow()
         db.commit()
     response.delete_cookie("evently_refresh")
 

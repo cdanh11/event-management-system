@@ -1,5 +1,7 @@
 """Test chức năng auth: login, refresh, logout, me, validation 422."""
 
+from app.main import app
+
 
 def test_login_success(client, make_user):
     make_user("Alice", "alice@demo.com", "ATTENDEE")
@@ -10,6 +12,52 @@ def test_login_success(client, make_user):
     assert body["token_type"] == "bearer"
     assert body["access_token"]
     assert body["user"]["email"] == "alice@demo.com"
+
+
+def test_register_creates_attendee_and_logs_in(client):
+    """POST /auth/register: tự mở tài khoản ATTENDEE + nhận token luôn."""
+    resp = client.post("/auth/register", json={
+        "name": "Newbie", "email": "newbie@demo.com", "password": "secret1",
+    })
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["user"]["role"] == "ATTENDEE"
+    assert body["access_token"]
+
+    me = client.get("/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "newbie@demo.com"
+
+
+def test_register_duplicate_email_409(client, make_user):
+    make_user("Alice", "alice@demo.com", "ATTENDEE")
+    resp = client.post("/auth/register", json={
+        "name": "Alice 2", "email": "alice@demo.com", "password": "secret1",
+    })
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "EMAIL_TAKEN"
+
+
+def test_register_cannot_escalate_role(client):
+    """Gửi kèm role ORGANIZER cũng bị bỏ qua — server ấn định ATTENDEE."""
+    resp = client.post("/auth/register", json={
+        "name": "Mallory", "email": "mallory@demo.com", "password": "secret1",
+        "role": "ORGANIZER",
+    })
+
+    assert resp.status_code == 201
+    assert resp.json()["user"]["role"] == "ATTENDEE"
+
+
+def test_register_invalid_payload_422(client):
+    resp = client.post("/auth/register", json={
+        "name": "", "email": "not-an-email", "password": "123",
+    })
+
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "VALIDATION_ERROR"
 
 
 def test_login_wrong_password(client, make_user):
@@ -61,3 +109,16 @@ def test_logout_clears_cookie(client, auth_headers):
     resp = client.post("/auth/logout", headers=headers)
 
     assert resp.status_code == 204
+
+
+def test_openapi_marks_only_protected_operations_with_bearer():
+    """Swagger phai giu login/danh sach Event la public."""
+    spec = app.openapi()
+
+    assert "security" not in spec
+    assert "security" not in spec["paths"]["/auth/login"]["post"]
+    assert "security" not in spec["paths"]["/events"]["get"]
+    assert spec["paths"]["/auth/me"]["get"]["security"] == [{"HTTPBearer": []}]
+    assert spec["components"]["schemas"]["EventStatus"]["enum"] == [
+        "DRAFT", "PUBLISHED", "ONGOING", "COMPLETED", "CANCELLED"
+    ]
