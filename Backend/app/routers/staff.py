@@ -1,7 +1,7 @@
 """Router: staff — sự kiện được gán, dashboard organizer, gán staff."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -34,27 +34,36 @@ def organizer_dashboard(
     user: User = Depends(require("ORGANIZER")),
     db: Session = Depends(get_db),
 ):
-    """Thống kê nhanh cho organizer: sự kiện, tổng đăng ký còn hiệu lực, tổng check-in."""
+    """Thống kê nhanh cho organizer: sự kiện, tổng đăng ký còn hiệu lực, tổng check-in.
+
+    Đếm bằng SQL func.count() — O(1) bộ nhớ, không kéo toàn bộ ORM về RAM.
+    """
     events = db.scalars(
         select(Event).where(Event.organizer_id == user.id).order_by(Event.start_time)
     ).all()
     event_ids = [e.id for e in events]
 
-    registrations = (
-        []
-        if not event_ids
-        else db.scalars(select(Registration).where(Registration.event_id.in_(event_ids))).all()
+    total_registrations = (
+        db.scalar(
+            select(func.count())
+            .select_from(Registration)
+            .where(Registration.event_id.in_(event_ids), Registration.status == "REGISTERED")
+        )
+        or 0
     )
-    checkins = (
-        []
-        if not event_ids
-        else db.scalars(select(Checkin).where(Checkin.event_id.in_(event_ids))).all()
+    total_checkins = (
+        db.scalar(
+            select(func.count())
+            .select_from(Checkin)
+            .where(Checkin.event_id.in_(event_ids))
+        )
+        or 0
     )
 
     return {
         "events": [to_event(e) for e in events],
-        "total_registrations": len([r for r in registrations if r.status == "REGISTERED"]),
-        "total_checkins": len(checkins),
+        "total_registrations": total_registrations,
+        "total_checkins": total_checkins,
     }
 
 

@@ -38,6 +38,51 @@ def test_register_returns_registration_and_ticket(client, auth_headers):
     assert body["ticket"]["status"] == "VALID"
 
 
+def test_register_sends_ticket_in_background(client, auth_headers, monkeypatch):
+    """Phase 2: register trả 201 ngay + task nền gửi vé/QR (không cần SMTP thật)."""
+    import app.routers.registrations as reg_router
+
+    calls: list[tuple] = []
+
+    async def fake_send(to_email, event_title, ticket_code, qr_value):
+        calls.append((to_email, event_title, ticket_code, qr_value))
+        return ticket_code
+
+    monkeypatch.setattr(reg_router, "send_ticket_email", fake_send)
+
+    org = auth_headers(role="ORGANIZER", email="org@demo.com")
+    att = auth_headers(role="ATTENDEE", email="att@demo.com")
+    event_id = _published_event(client, org)
+
+    resp = client.post(f"/events/{event_id}/register", headers=att)
+
+    assert resp.status_code == 201
+    assert len(calls) == 1  # task nền đã chạy sau response
+    to_email, event_title, ticket_code, _qr = calls[0]
+    assert to_email == "att@demo.com"
+    assert event_title == "Workshop"
+    assert ticket_code == resp.json()["ticket"]["ticket_code"]
+
+
+def test_register_past_event_400(client, auth_headers, db):
+    """Event PUBLISHED nhưng start_time đã qua -> 400 EVENT_STARTED."""
+    from app.models import Event
+
+    org = auth_headers(role="ORGANIZER", email="org@demo.com")
+    att = auth_headers(role="ATTENDEE", email="att@demo.com")
+    event_id = _published_event(client, org)
+
+    db.query(Event).filter_by(id=event_id).update({
+        "start_time": datetime.now() - timedelta(days=1),
+        "end_time": datetime.now() - timedelta(hours=20),
+    })
+    db.commit()
+
+    resp = client.post(f"/events/{event_id}/register", headers=att)
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "EVENT_STARTED"
+
+
 def test_register_duplicate_409(client, auth_headers):
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     att = auth_headers(role="ATTENDEE", email="att@demo.com")

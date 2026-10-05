@@ -6,7 +6,9 @@
   - POST /registrations/{id}/cancel   -> hủy đăng ký (Cancel)
   - GET  /registrations/{id}/ticket   -> vé của một đăng ký
 """
-from fastapi import APIRouter, Depends
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,11 +16,30 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_user, require
 from ..errors import api_error
-from ..models import Event, Registration, Ticket, User
-from ..schemas import RegisterOut, RegistrationOut, TicketOut
+from ..models import Event, Registration, Ticket, User, utcnow
+from ..realtime import manager, occupancy_payload
+from ..services.notifier import send_ticket_email
+from ..schemas import (
+    AUTH_RESPONSES,
+    ERROR_404,
+    ERROR_409,
+    RegisterOut,
+    RegistrationOut,
+    TicketOut,
+)
 from ..serializers import to_registration, to_ticket
 
 router = APIRouter()
+
+
+def _now_naive() -> datetime:
+    """UTC hiện tại dạng naive — khớp cột DateTime (không tz) trong DB."""
+    return utcnow()
+
+
+def _as_naive(value: datetime) -> datetime:
+    """Chuẩn hóa datetime aware/naive (client gửi ISO có 'Z') để so sánh được."""
+    return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
 
 @router.post(
@@ -26,9 +47,11 @@ router = APIRouter()
     response_model=RegisterOut,
     status_code=201,
     tags=["registrations"],
+    responses={**AUTH_RESPONSES, 404: ERROR_404, 409: ERROR_409},
 )
 def register(
     event_id: str,
+    background_tasks: BackgroundTasks,
     user: User = Depends(require("ATTENDEE")),
     db: Session = Depends(get_db),
 ):
@@ -46,6 +69,11 @@ def register(
 
         if event.status != "PUBLISHED":
             api_error(400, "REGISTRATION_CLOSED", "Registration is unavailable")
+
+        # Sự kiện PUBLISHED nhưng đã qua giờ bắt đầu (organizer quên COMPLETED)
+        # thì không cho nhận vé mới — tránh chiếm slot của sự kiện đã diễn ra.
+        if _as_naive(event.start_time) <= _now_naive():
+            api_error(400, "EVENT_STARTED", "Event has already started")
 
         existing = db.scalar(
             select(Registration).where(
@@ -69,6 +97,20 @@ def register(
 
         event.registered_count += 1
         db.commit()
+
+        # Đọc kiểu nguyên thủy TRƯỚC khi Session đóng — task nền không được chạm ORM.
+        attendee_email = user.email
+        show_title = event.title
+        ticket_code = ticket.ticket_code
+        ticket_qr = ticket.qr_value
+        occupancy = occupancy_payload(event)
+
+        # Phase 0: đẩy occupancy realtime cho dashboard Admin sau response.
+        background_tasks.add_task(manager.broadcast_occupancy, event.id, occupancy)
+        # Phase 2: gửi vé/QR sau response — client nhận 201 ngay trong vài ms.
+        background_tasks.add_task(
+            send_ticket_email, attendee_email, show_title, ticket_code, ticket_qr
+        )
 
         return {"registration": to_registration(registration), "ticket": to_ticket(ticket)}
 
@@ -115,6 +157,7 @@ def get_registration(
 )
 def cancel_registration(
     registration_id: str,
+    background_tasks: BackgroundTasks,
     user: User = Depends(require("ATTENDEE")),
     db: Session = Depends(get_db),
 ):
@@ -143,6 +186,9 @@ def cancel_registration(
     event.registered_count = max(0, event.registered_count - 1)
 
     db.commit()
+    background_tasks.add_task(
+        manager.broadcast_occupancy, event.id, occupancy_payload(event)
+    )
     return to_registration(reg)
 
 
