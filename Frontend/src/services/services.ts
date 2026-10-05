@@ -33,17 +33,18 @@ const event = (e: ApiEvent): Event => ({
   createdAt: e.created_at,
 });
 
-const eventPayload = (
-  v: Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>
-) => ({
-  title: v.title,
-  description: v.description,
-  location: v.location,
-  start_time: v.startTime,
-  end_time: v.endTime,
-  capacity: v.capacity,
-  category: v.category,
-  banner_image: v.bannerImage,
+type EventInput = Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>;
+type EventUpdate = Partial<Pick<Event, 'title' | 'description' | 'location' | 'startTime' | 'endTime' | 'capacity' | 'category' | 'bannerImage'>>;
+
+const eventPayload = (value: EventInput | EventUpdate) => ({
+  ...(value.title !== undefined && { title: value.title }),
+  ...(value.description !== undefined && { description: value.description }),
+  ...(value.location !== undefined && { location: value.location }),
+  ...(value.startTime !== undefined && { start_time: value.startTime }),
+  ...(value.endTime !== undefined && { end_time: value.endTime }),
+  ...(value.capacity !== undefined && { capacity: value.capacity }),
+  ...(value.category !== undefined && { category: value.category }),
+  ...(value.bannerImage !== undefined && { banner_image: value.bannerImage }),
 });
 
 type ApiRegistration = {
@@ -119,19 +120,27 @@ const staffAssignment = (a: ApiStaffAssignment): StaffAssignment => ({
 });
 
 export const eventService = {
-  getEvents: async () => 
-    (await request<ApiEvent[]>('/events')).map(event),
+  getEvents: async (limit = 20, offset = 0) =>
+    (await request<ApiEvent[]>(`/events?limit=${limit}&offset=${offset}`)).map(event),
 
   getEvent: async (id: string) => 
     event(await request<ApiEvent>(`/events/${id}`)),
 
   create: async (
-    input: Omit<Event, 'id' | 'registeredCount' | 'status' | 'createdAt' | 'organizerId'>,
+    input: EventInput,
     _u: User
   ) =>
     event(
       await request<ApiEvent>('/events', {
         method: 'POST',
+        body: JSON.stringify(eventPayload(input)),
+      })
+    ),
+
+  reschedule: async (id: string, input: EventUpdate) =>
+    event(
+      await request<ApiEvent>(`/events/${id}`, {
+        method: 'PATCH',
         body: JSON.stringify(eventPayload(input)),
       })
     ),
@@ -143,6 +152,14 @@ export const eventService = {
         body: JSON.stringify({ status: s }),
       })
     ),
+
+  notify: (id: string) =>
+    request<{ event_id: string; emails_sent: number; mode: string }>(`/events/${id}/notify`, {
+      method: 'POST',
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/events/${id}`, { method: 'DELETE' }),
 };
 
 export const registrationService = {

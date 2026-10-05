@@ -8,6 +8,11 @@ export const setAccessToken = (value?: string) => {
   accessToken = value;
 };
 
+export const getAccessToken = () => accessToken;
+
+export const wsBaseUrl = () =>
+  baseUrl.replace(/^http/, 'ws');
+
 async function refresh() {
   const r = await fetch(`${baseUrl}/auth/refresh`, {
     method: 'POST',
