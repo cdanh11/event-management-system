@@ -1,3 +1,3 @@
 # Architecture
 
-The UI follows `Page → hook/context → service → mock API → mock data`. Pages only call service functions through `useAsync`; `mockApi.ts` owns delay, LocalStorage persistence, errors, and domain transitions. Replacing mockApi with an HTTP client preserves pages.
+The UI follows `Page -> hook/context -> service -> apiClient -> FastAPI`. Pages call service functions through `useAsync`; `apiClient.ts` owns Bearer access-token handling, refresh-token cookie retry and normalized API errors. `services.ts` maps backend `snake_case` responses to the frontend `camelCase` domain types. The legacy `mock/` directory is not part of the runtime request flow.

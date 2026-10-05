@@ -1,4 +1,6 @@
-# Mock API contract
+# Legacy Mock API contract
+
+This document describes the historical mock layer only. The running frontend now calls FastAPI through `src/api/apiClient.ts` and `src/services/services.ts`.
 
 `GET /events`, `GET /events/:id`, `POST /events`, `POST /events/:id/publish`, `GET /registrations/me`, `POST /events/:id/register`, `POST /registrations/:id/cancel`, `GET /tickets/:id`, and `POST /checkins` are represented in `mockApi.ts`.
 
