@@ -18,7 +18,7 @@ class Settings:
     # URL kết nối PostgreSQL (SQLAlchemy + driver psycopg 3).
     database_url: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+psycopg://evently:evently@localhost:5432/evently",
+        "postgresql+psycopg://evently:evently@localhost:5433/evently",
     )
 
     # --- JWT / phiên đăng nhập ------------------------------------------
