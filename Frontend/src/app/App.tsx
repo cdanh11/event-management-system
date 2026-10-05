@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate, Route, Routes, Link, useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, CheckCircle2, LogOut, MapPin, Search, Users } from 'lucide-react';
-import { useAuth } from '../features/auth/AuthContext';
+import { useAuth } from '../features/auth/useAuth';
 import { useAsync } from '../hooks/useAsync';
 import {
   eventService,
@@ -9,9 +9,10 @@ import {
   ticketService,
   checkinService,
   organizerService,
-  staffService 
+  staffService
 } from '../services/services';
 import type { Event, EventStatus, Registration, Role } from '../types';
+import { LiveDashboard } from '../features/realtime/LiveDashboard';
 
 // Helpers
 const formatDate = (v: string) =>
@@ -46,8 +47,8 @@ function homePath(role: Role) {
 
 function Home() {
   const { user } = useAuth()
-  if (!user) return <Navigate to="/login" replace/>
-  return <Navigate to={homePath(user.role)} replace/>
+  if (!user) return <Navigate to="/login" replace />
+  return <Navigate to={homePath(user.role)} replace />
 }
 
 // Layout & Guards
@@ -60,17 +61,18 @@ function Layout({ children }: { children: React.ReactNode }) {
   const links =
     user.role === 'ATTENDEE'
       ? [
-          ['Explore', '/events'],
-          ['My registrations', '/registrations'],
-        ]
+        ['Explore', '/events'],
+        ['My registrations', '/registrations'],
+      ]
       : user.role === 'STAFF'
-      ? [
+        ? [
           ['Dashboard', '/staff'],
           ['Check-in', '/staff/check-in'],
           ['Attendees', '/staff/attendees'],
         ]
-      : [
+        : [
           ['Dashboard', '/organizer'],
+          ['Live', '/organizer/live'],
           ['Events', '/organizer/events'],
           ['Create event', '/organizer/create'],
         ];
@@ -111,20 +113,20 @@ function Layout({ children }: { children: React.ReactNode }) {
 function RoleGate({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return roles.includes(user.role)?<>{children}</>:<Navigate to={homePath(user.role)} replace/>
+  return roles.includes(user.role) ? <>{children}</> : <Navigate to={homePath(user.role)} replace />
 }
 
-function ConfirmDialog({open,title,message,confirmLabel='Confirm',busy,onConfirm,onCancel}:{
-  open:boolean;title:string;message:string;confirmLabel?:string;busy?:boolean
-  onConfirm:()=>void;onCancel:()=>void
-}){
-  if(!open)return null
+function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', busy, onConfirm, onCancel }: {
+  open: boolean; title: string; message: string; confirmLabel?: string; busy?: boolean
+  onConfirm: () => void; onCancel: () => void
+}) {
+  if (!open) return null
   return <div className="modal-overlay" onClick={onCancel}>
-    <div className="modal-box" onClick={e=>e.stopPropagation()}>
+    <div className="modal-box" onClick={e => e.stopPropagation()}>
       <h3>{title}</h3><p>{message}</p>
       <div className="modal-actions">
         <button className="secondary" disabled={busy} onClick={onCancel}>Back</button>
-        <button className="primary" disabled={busy} onClick={onConfirm}>{busy?'Please wait…':confirmLabel}</button>
+        <button className="primary" disabled={busy} onClick={onConfirm}>{busy ? 'Please wait…' : confirmLabel}</button>
       </div>
     </div>
   </div>
@@ -237,8 +239,8 @@ function EventDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const navigate = useNavigate();
 
-  if (loading) return <Layout><State text="Loading event…"/></Layout>;
-  if (error || !event) return <Layout><State text="Event not found."/></Layout>;
+  if (loading) return <Layout><State text="Loading event…" /></Layout>;
+  if (error || !event) return <Layout><State text="Event not found." /></Layout>;
 
   const myReg = myRegs?.find(r => r.eventId === event.id);
   const full = event.registeredCount >= event.capacity;
@@ -327,7 +329,7 @@ function Registrations() {
   const [msg, setMsg] = useState('');
   const [cancelTarget, setCancelTarget] = useState<{ id: string; title: string } | null>(null);
   const [busyCancel, setBusyCancel] = useState(false);
-  const nav = useNavigate();  
+  const nav = useNavigate();
 
   if (loading) return <Layout><State text="Loading your registrations…" /></Layout>;
 
@@ -552,6 +554,22 @@ function Organizer() {
   );
 }
 
+function OrganizerLive() {
+  return (
+    <Layout>
+      <section className="page-head">
+        <p className="eyebrow">REALTIME DASHBOARD</p>
+        <h1>Live occupancy.</h1>
+        <p>
+          Kênh WebSocket occupancy theo event — Attendee đăng ký là số Remaining
+          tự nhảy, không reload. <Link to="/organizer">← Dashboard</Link>
+        </p>
+      </section>
+      <LiveDashboard />
+    </Layout>
+  );
+}
+
 function CreateEvent() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -610,8 +628,8 @@ function CreateEvent() {
                 key.includes('Time')
                   ? 'datetime-local'
                   : key === 'capacity'
-                  ? 'number'
-                  : 'text'
+                    ? 'number'
+                    : 'text'
               }
               value={value}
               onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -665,18 +683,59 @@ function StaffAssignment({ eventId }: { eventId: string }) {
 
 function ManageEvent() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const { data: event, loading, reload } = useAsync(() => eventService.getEvent(id), [id]);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
   if (loading) return <Layout><State text="Loading event…" /></Layout>;
   if (!event) return <Layout><State text="Event not found." /></Layout>;
 
   const transitionState = async (s: EventStatus) => {
+    setError('');
     try {
       await eventService.transition(id, s);
       void reload();
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const reschedule = async (formEvent: React.FormEvent) => {
+    formEvent.preventDefault();
+    setError('');
+    try {
+      await eventService.reschedule(id, {
+        startTime: new Date(startTime || event.startTime).toISOString(),
+        endTime: new Date(endTime || event.endTime).toISOString(),
+      });
+      setMessage('Event schedule updated.');
+      void reload();
+    } catch (exception) {
+      setError((exception as Error).message);
+    }
+  };
+
+  const notify = async () => {
+    setError('');
+    try {
+      const result = await eventService.notify(id);
+      setMessage(`${result.emails_sent} attendee(s) notified via ${result.mode}.`);
+    } catch (exception) {
+      setError((exception as Error).message);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Delete this DRAFT event permanently?')) return;
+    setError('');
+    try {
+      await eventService.remove(id);
+      navigate('/organizer');
+    } catch (exception) {
+      setError((exception as Error).message);
     }
   };
 
@@ -696,6 +755,7 @@ function ManageEvent() {
       </div>
 
       {error && <div className="notice error">{error}</div>}
+      {message && <div className="notice success">{message}</div>}
 
       <section className="actions">
         <h2>Lifecycle</h2>
@@ -719,25 +779,51 @@ function ManageEvent() {
             Cancel event
           </button>
         )}
+        {event.status === 'DRAFT' && (
+          <button className="text-button" onClick={remove}>
+            Delete draft
+          </button>
+        )}
+        <button className="secondary" onClick={notify}>Notify attendees</button>
       </section>
-      <StaffAssignment eventId={event.id}/>
+      <section className="actions">
+        <h2>Reschedule</h2>
+        <form className="form" onSubmit={reschedule}>
+          <label>
+            Start time
+            <input type="datetime-local" value={startTime || event.startTime.slice(0, 16)} onChange={(input) => setStartTime(input.target.value)} />
+          </label>
+          <label>
+            End time
+            <input type="datetime-local" value={endTime || event.endTime.slice(0, 16)} onChange={(input) => setEndTime(input.target.value)} />
+          </label>
+          <button className="secondary">Save schedule</button>
+        </form>
+      </section>
+      <StaffAssignment eventId={event.id} />
     </Layout>
   );
 }
 
 function Login() {
-  const { login, user } = useAuth();
+  const { login, register, user } = useAuth();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('attendee@demo.com');
   const [password, setPassword] = useState('123456');
   const [error, setError] = useState('');
 
-  if(user)return <Navigate to={homePath(user.role)}/>;
+  if (user) return <Navigate to={homePath(user.role)} />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      const u = await login(email, password);
+      const u =
+        mode === 'signin'
+          ? await login(email, password)
+          : await register(name.trim(), email, password);
       navigate(homePath(u.role));
     } catch (e) {
       setError((e as Error).message);
@@ -759,8 +845,14 @@ function Login() {
       </div>
 
       <form onSubmit={submit}>
-        <p className="eyebrow">WELCOME BACK</p>
-        <h2>Sign in to Evently</h2>
+        <p className="eyebrow">{mode === 'signin' ? 'WELCOME BACK' : 'JOIN EVENTLY'}</p>
+        <h2>{mode === 'signin' ? 'Sign in to Evently' : 'Create attendee account'}</h2>
+        {mode === 'signup' && (
+          <label>
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+        )}
         <label>
           Email
           <input value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -774,11 +866,27 @@ function Login() {
           />
         </label>
         {error && <div className="notice error">{error}</div>}
-        <button className="primary">Sign in</button>
+        <button className="primary">{mode === 'signin' ? 'Sign in' : 'Sign up'}</button>
         <p className="hint">
-          Demo: attendee@demo.com · staff@demo.com · organizer@demo.com
-          <br />
-          Password: 123456
+          {mode === 'signin' ? (
+            <>
+              New here?{' '}
+              <button type="button" className="text-button" onClick={() => { setMode('signup'); setError(''); }}>
+                Create an attendee account
+              </button>
+              <br />
+              Demo: attendee@demo.com · staff@demo.com · organizer@demo.com
+              <br />
+              Password: 123456
+            </>
+          ) : (
+            <>
+              Signup creates an ATTENDEE account (min. 6-char password).{' '}
+              <button type="button" className="text-button" onClick={() => { setMode('signin'); setError(''); }}>
+                Back to sign in
+              </button>
+            </>
+          )}
         </p>
       </form>
     </div>
@@ -790,9 +898,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/" element={<Home/>}/>
-      <Route path="/events" element={<RoleGate roles={['ATTENDEE']}><EventsPage/></RoleGate>}/>
-      <Route path="/events/:id" element={<RoleGate roles={['ATTENDEE']}><EventDetail/></RoleGate>}/>
+      <Route path="/" element={<Home />} />
+      <Route path="/events" element={<RoleGate roles={['ATTENDEE']}><EventsPage /></RoleGate>} />
+      <Route path="/events/:id" element={<RoleGate roles={['ATTENDEE']}><EventDetail /></RoleGate>} />
       <Route
         path="/registrations"
         element={
@@ -842,6 +950,14 @@ export function App() {
         }
       />
       <Route
+        path="/organizer/live"
+        element={
+          <RoleGate roles={['ORGANIZER']}>
+            <OrganizerLive />
+          </RoleGate>
+        }
+      />
+      <Route
         path="/organizer/events"
         element={
           <RoleGate roles={['ORGANIZER']}>
@@ -865,7 +981,7 @@ export function App() {
           </RoleGate>
         }
       />
-      <Route path="*" element={<Home/>}/>
+      <Route path="*" element={<Home />} />
     </Routes>
   );
 }
