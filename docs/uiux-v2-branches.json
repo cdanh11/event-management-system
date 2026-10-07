@@ -1,0 +1,1051 @@
+{
+  "base_commit": "1f341949103bac04c9d615262d4902f4afaef414",
+  "integration_branch": "feature/uiux-v2-integration",
+  "committed": true,
+  "notes": "Published stack; merge backend, foundation, attendee, operations, documentation using merge commits. Integration remains local.",
+  "groups": {
+    "foundation": {
+      "branch": "feature/uiux-v2-foundation",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "deleted": false,
+          "sha256": "cbf97ee63b6c17d637cf5a8b3fb26a8c631e67ebd7f3a9512b6ec514850f017e"
+        },
+        {
+          "path": ".gitignore",
+          "deleted": false,
+          "sha256": "1ce1f04b37f9136433659a09a983a610ccb47acca0fb3c6db9190b1675f08878"
+        },
+        {
+          "path": "Frontend/.gitignore",
+          "deleted": false,
+          "sha256": "61225a072b4b505864c3a4e38e2c7d9b2b903270f414010d1d2e9e1d827dace1"
+        },
+        {
+          "path": "Frontend/index.html",
+          "deleted": false,
+          "sha256": "487de5a46d9faf8004e275e4a0b73eaef2af0c5278a7abf44014e64bbbee7ba7"
+        },
+        {
+          "path": "Frontend/package-lock.json",
+          "deleted": false,
+          "sha256": "7413eb3e70b8e6611fee3143919e8cb206494d1e70f0cbe44c77213474967da8"
+        },
+        {
+          "path": "Frontend/package.json",
+          "deleted": false,
+          "sha256": "876185d8adcf83e83752dd43bed78708c52879e358a816286cac3c374092e9b8"
+        },
+        {
+          "path": "Frontend/postcss.config.js",
+          "deleted": false,
+          "sha256": "2be44627595905b5069208e7fd7d931026f8b65f31ef5a06132ed3b6e927149e"
+        },
+        {
+          "path": "Frontend/public/fonts/3y9H6as8bTXq_nANBjzKo3IeZx8z6up5BeSl5jBNz_19PpbpMXuECpwUxJBOm_OJWiawA1Xp.woff2",
+          "deleted": false,
+          "sha256": "a97804dc9fbe5fc972a08018c5eda4dab7ef2346f64c57e61419d05e6de4ea1c"
+        },
+        {
+          "path": "Frontend/public/fonts/3y9H6as8bTXq_nANBjzKo3IeZx8z6up5BeSl5jBNz_19PpbpMXuECpwUxJBOm_OJWiawDFXplDs.woff2",
+          "deleted": false,
+          "sha256": "33ae5254fa09938c5abef5f1acaf848c0303aa21e3eb5632edb7d434deb3f572"
+        },
+        {
+          "path": "Frontend/public/fonts/3y9H6as8bTXq_nANBjzKo3IeZx8z6up5BeSl5jBNz_19PpbpMXuECpwUxJBOm_OJWiawDVXplDs.woff2",
+          "deleted": false,
+          "sha256": "e808f16b56f84dc7933e498cc8a41d4a5cd853adc6eef154584baa5de1008b15"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HTEJm81Rb0.woff2",
+          "deleted": false,
+          "sha256": "b621f77d35f777023aa11ca524462d511b4b28a813adbc0e9d15a10fc61dfe4e"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HTEJm86Rb0bcw.woff2",
+          "deleted": false,
+          "sha256": "86341610cbe907eecf461c9159c168d5efb52bb1a33963813a08f520555d8e66"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HTEJm87Rb0bcw.woff2",
+          "deleted": false,
+          "sha256": "947d592eb7676914507ff68fc11fcf2cfdecd6ebaf0fa2af6047f66a63ea7d0f"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HToIW81Rb0.woff2",
+          "deleted": false,
+          "sha256": "9503dec2a7c532c8331e9600bcafea287a4fd208573b8668d85ab8d8de1863c7"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HToIW86Rb0bcw.woff2",
+          "deleted": false,
+          "sha256": "97658c6f9a384f29a3005c3d96e2a0d1c810192cf68979071c290f5a377a9f99"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVMSTAyLFyeg_IDWvOJmVES_HToIW87Rb0bcw.woff2",
+          "deleted": false,
+          "sha256": "20cc75daeaaaa0fa8af2b616b2de2b2900f0ce14ae8e9faa47d272cedd93827f"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVPSTAyLFyeg_IDWvOJmVES_Hw3BXo.woff2",
+          "deleted": false,
+          "sha256": "03d1b589cff172e1a670b3573e731d3380bc326f80cf83b0d3504e3188e2e074"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVPSTAyLFyeg_IDWvOJmVES_Hw4BXoKZA.woff2",
+          "deleted": false,
+          "sha256": "dc085e2fba3414e5c5bf1e6172f921a9f81c5859946a4ed3d63c1e470d96a9e2"
+        },
+        {
+          "path": "Frontend/public/fonts/QdVPSTAyLFyeg_IDWvOJmVES_Hw5BXoKZA.woff2",
+          "deleted": false,
+          "sha256": "f7a2811e471c2973a1179ce39da3ad6bb8082381aa8d1535ccfcbc3d6d78a052"
+        },
+        {
+          "path": "Frontend/public/fonts/bevietnampro-OFL.txt",
+          "deleted": false,
+          "sha256": "6b7f8f73609a25ea78c891e34cf37b06f8a676b7ea986e941e43b009110f2a85"
+        },
+        {
+          "path": "Frontend/public/fonts/bricolagegrotesque-OFL.txt",
+          "deleted": false,
+          "sha256": "8c9da887585abe4d84104927dae3a7805a0bd11f06f1a31a32e923dbbffefd43"
+        },
+        {
+          "path": "Frontend/scripts/audit-copy.mjs",
+          "deleted": false,
+          "sha256": "2ddead7da51d95476bdca0ba25b53b6c8f9741d1170935b2361b63214fa76703"
+        },
+        {
+          "path": "Frontend/scripts/vendor-fonts.py",
+          "deleted": false,
+          "sha256": "a7fb15559f11a86d4f1c61651f03a92ac5114c96d97b890003701118bffdc04f"
+        },
+        {
+          "path": "Frontend/src/api/apiClient.ts",
+          "deleted": false,
+          "sha256": "d3cf827482e59a4bf16104d67d17c1b6c0da9fe09d21ef1d0e147880decde136"
+        },
+        {
+          "path": "Frontend/src/app/App.tsx",
+          "deleted": false,
+          "sha256": "e16bb1e1156e4b7b1b58aa5133413dcd8b5abff9b160469223594340eb6a6289"
+        },
+        {
+          "path": "Frontend/src/components/layout/AppShell.tsx",
+          "deleted": false,
+          "sha256": "4b7eef6d44402acd3872e99b92ced944993a3a88c733f2c62caca40ebf57553c"
+        },
+        {
+          "path": "Frontend/src/components/ui/Agenda.tsx",
+          "deleted": false,
+          "sha256": "e4ae828d9023fb7f66a532354bc6c71a01faadece8bf9e3c46fa84139b828aad"
+        },
+        {
+          "path": "Frontend/src/components/ui/Avatar.tsx",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/components/ui/Button.tsx",
+          "deleted": false,
+          "sha256": "1649d36bc1a74a860cb7499c56fff7564806695c5ba053abe6c653ab8964880a"
+        },
+        {
+          "path": "Frontend/src/components/ui/ConnectionIndicator.tsx",
+          "deleted": false,
+          "sha256": "e0300d830c8986782b68958139cfad4c3b26fff6a85a0f1100311099bc929bbc"
+        },
+        {
+          "path": "Frontend/src/components/ui/Countdown.tsx",
+          "deleted": false,
+          "sha256": "882327800b93a1c30d6acb425a94408d0a4ddfdbf82a3ce442c98b2ff2605e4e"
+        },
+        {
+          "path": "Frontend/src/components/ui/DoorCounter.tsx",
+          "deleted": false,
+          "sha256": "04e1381321ca8093fa421e7f5ed85e0ce1e7b60f7f4db18a362e5cc37d47cbda"
+        },
+        {
+          "path": "Frontend/src/components/ui/DoorStatus.tsx",
+          "deleted": false,
+          "sha256": "8e4cdbeeb978d729549cd9c80f0093ac0cb04f627f4febed06f7bf746a112532"
+        },
+        {
+          "path": "Frontend/src/components/ui/Modal.tsx",
+          "deleted": false,
+          "sha256": "c117ea4e79e69a872c8417047d469e50a25e1d7841793bfe892ede12608f2b94"
+        },
+        {
+          "path": "Frontend/src/components/ui/OrganizerAgenda.tsx",
+          "deleted": false,
+          "sha256": "fbdb271f381476dc3c2b90d1de764e2ca5fa9784ea4147c5603993f742a444ee"
+        },
+        {
+          "path": "Frontend/src/components/ui/PageHeader.tsx",
+          "deleted": false,
+          "sha256": "62cff356612ee4922ef83dd47a118086003dc7e638558fdec172820e5f074069"
+        },
+        {
+          "path": "Frontend/src/components/ui/QRCodeView.tsx",
+          "deleted": false,
+          "sha256": "54e71e93c582735dfd81aedf28eae3cde3531be9f465bd0ab46edfa59f0d035d"
+        },
+        {
+          "path": "Frontend/src/components/ui/RelativeTime.tsx",
+          "deleted": false,
+          "sha256": "cdcb821bfe71d55c93e23f5ba9890d541f486f3d5055a8b5b4d31bc7a74e42be"
+        },
+        {
+          "path": "Frontend/src/components/ui/Sparkline.tsx",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/components/ui/Tabs.tsx",
+          "deleted": false,
+          "sha256": "5a74170e6b7065cd31db036abb15afdfbebc64fd771cdb05f278647f11639a75"
+        },
+        {
+          "path": "Frontend/src/components/ui/Toast.tsx",
+          "deleted": false,
+          "sha256": "22a2abeff20c1daeae047810fdd4c8a51bdc5b6fd43fe7b5c1943d3404062867"
+        },
+        {
+          "path": "Frontend/src/components/ui/forms.tsx",
+          "deleted": false,
+          "sha256": "d405ca11bac8ab6e2d186f707e04f5df8263babb53d8a30d9e0f92b9a46b0c25"
+        },
+        {
+          "path": "Frontend/src/components/ui/states.tsx",
+          "deleted": false,
+          "sha256": "1bfdca672d935831c04b97f0e7cf5ecbd1ef466231c57a36607b016084cdd5da"
+        },
+        {
+          "path": "Frontend/src/copy/strings.ts",
+          "deleted": false,
+          "sha256": "963a11dbbd64d534db7d1a5644d0265646731cefdd72998facd7c30cd4d36555"
+        },
+        {
+          "path": "Frontend/src/features/auth/AuthContext.tsx",
+          "deleted": false,
+          "sha256": "035a649ecfc3a37a4193ba488cc7a69ced97879e94bdc11b63ed507d7f0b95df"
+        },
+        {
+          "path": "Frontend/src/features/auth/authStore.ts",
+          "deleted": false,
+          "sha256": "edd931dc522146c7395d6ad112d5d54fd93a99ebac8af5620a2cdfdbf1c7204b"
+        },
+        {
+          "path": "Frontend/src/hooks/useAsync.ts",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/hooks/useQuery.ts",
+          "deleted": false,
+          "sha256": "7ffdc14f245b06b6f1ae5bd5796deb35e22a103d6b4f62339fd5a08df3e4ec87"
+        },
+        {
+          "path": "Frontend/src/i18n/strings.ts",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/lib/datetime.ts",
+          "deleted": false,
+          "sha256": "fd334076d1e97c2b3685c0e145f71b300d0ce4cd22598de4d580c91cbe4fd7be"
+        },
+        {
+          "path": "Frontend/src/lib/errors.ts",
+          "deleted": false,
+          "sha256": "345466d6e7652774f152dffcef735654f18d0f59faf12bbb51dd8e39629f6fc0"
+        },
+        {
+          "path": "Frontend/src/lib/navigation.ts",
+          "deleted": false,
+          "sha256": "c031029c8d82484770acda4b6a6fa8f53641c2a718bd845b4cf181c4369e510b"
+        },
+        {
+          "path": "Frontend/src/lib/status.ts",
+          "deleted": false,
+          "sha256": "0dda0dd6023b6575ab53675e821aabe5df8bdc3a0c7e055cd113da2a51a7c130"
+        },
+        {
+          "path": "Frontend/src/main.tsx",
+          "deleted": false,
+          "sha256": "e16060c5df23230475bc4b5f361323331268cabdc8c78d0b224bcd8ceb7bac64"
+        },
+        {
+          "path": "Frontend/src/mock/data.ts",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/mock/mockApi.ts",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/pages/Login.tsx",
+          "deleted": false,
+          "sha256": "2d143cb667059ab4428fca8c7940d2f40200169d1e262ca68577c5a5c64f3e79"
+        },
+        {
+          "path": "Frontend/src/pages/Register.tsx",
+          "deleted": false,
+          "sha256": "c6b7668153dba9836d6b3467e0bb8743df21068514e43532a3fc53cddf1506e9"
+        },
+        {
+          "path": "Frontend/src/pages/errors.tsx",
+          "deleted": false,
+          "sha256": "ed88bf7a7263532c9e236b6fadf68a8e877353f566d262da48296b230994d6a2"
+        },
+        {
+          "path": "Frontend/src/services/services.ts",
+          "deleted": false,
+          "sha256": "6aa589262189c9bfce6cedd2ceef80b66f6f00f3be491abae73129c093626fb6"
+        },
+        {
+          "path": "Frontend/src/styles/fonts.css",
+          "deleted": false,
+          "sha256": "f93d1a35bf3413045c8cb8d0fe3eeebefd4a9c8a8d7ce41acc08286950114f80"
+        },
+        {
+          "path": "Frontend/src/styles/globals.css",
+          "deleted": false,
+          "sha256": "7361482d2d328d374ea93c0a92cfc3ec08c607c9118ea60b2f596651c6f456db"
+        },
+        {
+          "path": "Frontend/src/styles/tokens.css",
+          "deleted": false,
+          "sha256": "e5fdf39cfcda5d65bfbd4e1414fd0598eb100ee10e7bfa1796e73d97a3fdddd7"
+        },
+        {
+          "path": "Frontend/src/types/index.ts",
+          "deleted": false,
+          "sha256": "d46e90c4dccdb07bf74788f9695f274c8b2da00eea92e59fe0fd74491b1f2d7b"
+        },
+        {
+          "path": "Frontend/tailwind.config.js",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "compose.yaml",
+          "deleted": false,
+          "sha256": "6999351bd567d054b9c986d8bea9e75cec4bcd5ab81e6936fc66e062d1176660"
+        },
+        {
+          "path": "tools/sync_review_worktrees.py",
+          "deleted": false,
+          "sha256": "fe32fe330b113e9ce6f89556fd28ea898c625958b3e2b3df43c5ec254770455d"
+        }
+      ],
+      "head": "925059db2b18746c6302a04b262dd5836c370834",
+      "commits": [
+        "e470616 chore(repo): exclude local files and configure PostgreSQL CI and Mailpit",
+        "df03378 build(frontend): streamline dependencies and lint source explicitly",
+        "af7fe3b style(frontend): vendor fonts with licenses and theme tokens",
+        "51824f2 feat(frontend): centralize contracts copy dates and query state",
+        "bb842a3 fix(frontend): coordinate token refresh and API services",
+        "d6a3a66 feat(ui): add accessible forms dialogs and feedback primitives",
+        "4707405 feat(ui): add event ticket and occupancy display components",
+        "988f947 feat(auth-ui): support numbered demo sign-in and role navigation",
+        "4fb434a refactor(frontend): wire desktop shell and lazy role routes",
+        "0b5db44 chore(frontend): remove unused mock data and async wrapper",
+        "ee4a2d9 chore(review): retain scoped worktree synchronization utility",
+        "925059d fix(deps): patch source-map-js denial-of-service advisory"
+      ]
+    },
+    "attendee": {
+      "branch": "feature/uiux-v2-attendee",
+      "files": [
+        {
+          "path": "Frontend/src/features/events/agenda.ts",
+          "deleted": false,
+          "sha256": "b62c56bfc3b28a290e9a89675ad2753a9722fcb1a45c9b8a7d3a232d8722b0e6"
+        },
+        {
+          "path": "Frontend/src/features/events/eventCache.ts",
+          "deleted": false,
+          "sha256": "717c9c012102688dc8b1c5596ccdcf9a86d21bab5f1a2530332299747617a99c"
+        },
+        {
+          "path": "Frontend/src/features/events/organizer.ts",
+          "deleted": false,
+          "sha256": "7e4dd9970f5aab4fc34b3ec6b4e0b9b060db10b12081bfb397e335c3ef0b778e"
+        },
+        {
+          "path": "Frontend/src/features/tickets/TicketPass.tsx",
+          "deleted": false,
+          "sha256": "c54b043865779aa543769423b1b9ab65fe681182b6579e5745207d57fb38d644"
+        },
+        {
+          "path": "Frontend/src/pages/attendee/EventDetail.tsx",
+          "deleted": false,
+          "sha256": "cfedacbf3882d73d0061d36be14cfc577076668d9fab9d8ef3d4b3222b0c0b2e"
+        },
+        {
+          "path": "Frontend/src/pages/attendee/Explore.tsx",
+          "deleted": false,
+          "sha256": "fe3fb87875785701541c9d433b4f7b710ef7deaa4dc4a591d667c38a26d59b87"
+        },
+        {
+          "path": "Frontend/src/pages/attendee/MyRegistrations.tsx",
+          "deleted": false,
+          "sha256": "bb7b49a263eec894439bd1f1a747a2b06cd2677499da6caec945a628b18c7ec2"
+        },
+        {
+          "path": "Frontend/src/pages/attendee/Ticket.tsx",
+          "deleted": false,
+          "sha256": "d12aace6185f9b1859c072dcc190ec7f7694c910a3c35ccade31827ee91d5b94"
+        },
+        {
+          "path": "Frontend/src/styles/attendee.css",
+          "deleted": false,
+          "sha256": "4eb0f09deeffaf831622f0a8be4a5d969d60d4337293c0be6f9cb150604515a0"
+        },
+        {
+          "path": "Frontend/src/styles/auth.css",
+          "deleted": false,
+          "sha256": "cbf30c8f71f9d0cb883854822ef3b00ebdb5276ed7b249f351d6a3a2ed5321b1"
+        }
+      ],
+      "head": "7dd4af5fbd361d75e0a23c3c282f0b9fc12dc975",
+      "commits": [
+        "419d7f4 feat(events-ui): add filtered agendas and event cache helpers",
+        "b089c74 feat(attendee): complete discovery and event registration views",
+        "7dd4af5 feat(tickets-ui): display real QR tickets and retryable cancellation"
+      ]
+    },
+    "operations": {
+      "branch": "feature/uiux-v2-operations",
+      "files": [
+        {
+          "path": "Frontend/src/features/door/DoorDesk.tsx",
+          "deleted": false,
+          "sha256": "91f8197bd0bac5247710346e88e0981b72c9bca8373e6ff9772a388e82109f1f"
+        },
+        {
+          "path": "Frontend/src/features/door/scan.ts",
+          "deleted": false,
+          "sha256": "1d8dfb2ec010406e78faaae768d52f4c3e7a6d30cd9d101b9e602c6f2f387111"
+        },
+        {
+          "path": "Frontend/src/features/live/session.ts",
+          "deleted": false,
+          "sha256": "0075892ae00d7bcca81f34b136f9c600a535e51fe8ab713fa113de8da08e1dc4"
+        },
+        {
+          "path": "Frontend/src/features/notifications/notifications.tsx",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/features/organizer/ManageActions.tsx",
+          "deleted": false,
+          "sha256": "bca9442db359388c6daf5705079b2be650429926c03d2b697f38316720e60887"
+        },
+        {
+          "path": "Frontend/src/features/organizer/ScheduleForm.tsx",
+          "deleted": false,
+          "sha256": "d0dfb5769d5bb4dab2df934594a916f84d482fe2c3e89d1c8d0fc96733a5d991"
+        },
+        {
+          "path": "Frontend/src/features/organizer/StaffPanel.tsx",
+          "deleted": false,
+          "sha256": "d9ed46383cdfdc790f95ccee40c38b4699574cecf5e5f46842ea471b16cc57be"
+        },
+        {
+          "path": "Frontend/src/features/organizer/eventForm.ts",
+          "deleted": false,
+          "sha256": "d6add4506a1e6c5d1af84259a09075f837f0acb368032e8d46254726dbca9fa5"
+        },
+        {
+          "path": "Frontend/src/features/realtime/LiveDashboard.tsx",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/pages/organizer/Create.tsx",
+          "deleted": false,
+          "sha256": "8cc2aeceb44a59ed23f07cc7ec381571aa460e2fbdefbf04bf53cf91ff0f9028"
+        },
+        {
+          "path": "Frontend/src/pages/organizer/Dashboard.tsx",
+          "deleted": false,
+          "sha256": "ccd0cda8290d96a99b2413bc8bd0b5207256b0b781cb283a4968d691c6a19aac"
+        },
+        {
+          "path": "Frontend/src/pages/organizer/Events.tsx",
+          "deleted": false,
+          "sha256": "e197b86ab5aa34badcc5041f5e47a7cbef4ad3ee2e26d386f08c1e0fbbb3edb5"
+        },
+        {
+          "path": "Frontend/src/pages/organizer/Live.tsx",
+          "deleted": false,
+          "sha256": "e006b6a83569379413cb86fd03dc01aa1097cdd9c368d28d68174e3b05e2c0b3"
+        },
+        {
+          "path": "Frontend/src/pages/organizer/Manage.tsx",
+          "deleted": false,
+          "sha256": "29ab71fb85e5d7e07c9f20b37b2b420e9a7177e6dcfe70551bb47801209aad26"
+        },
+        {
+          "path": "Frontend/src/pages/staff/CheckinDesk.tsx",
+          "deleted": false,
+          "sha256": "d8c23064a12b2fd0e1fa1fd2ac2892485caf370a7cf00c027851de42b4fc29a7"
+        },
+        {
+          "path": "Frontend/src/realtime/socket.ts",
+          "deleted": false,
+          "sha256": "75914133160f6187414961eef0a62f67e4c428a734ce355488dcae3f69c145b8"
+        },
+        {
+          "path": "Frontend/src/realtime/useNow.ts",
+          "deleted": false,
+          "sha256": "88bf39d18de01f0028231ba80656f36146284ef7c91153cfca2d857eaeef4492"
+        },
+        {
+          "path": "Frontend/src/realtime/useOccupancy.ts",
+          "deleted": false,
+          "sha256": "09a6850db7b1c6738efd3e501d8e675c3672a05471dc5ba1e739445f706fb7e0"
+        },
+        {
+          "path": "Frontend/src/realtime/useOccupancySocket.ts",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Frontend/src/realtime/usePolling.ts",
+          "deleted": false,
+          "sha256": "c53f5a94f80e9851bae804cb91874fa4a49e1b7fb2c55129fcbda9273b0224cd"
+        },
+        {
+          "path": "Frontend/src/styles/operations.css",
+          "deleted": false,
+          "sha256": "9451f51c21e59482d8ac14758e92255a9cde2074a3a1e7d13dcf9db702aa23da"
+        },
+        {
+          "path": "Frontend/src/styles/organizer.css",
+          "deleted": false,
+          "sha256": "c1369eec99c4ef3e16f4c92dbe3181f02d1f1737a9f927b67cc653a51f2de1b9"
+        },
+        {
+          "path": "Frontend/tests/foundation.test.mjs",
+          "deleted": false,
+          "sha256": "12b092697642809cb549e1ab22a08f608e37bc38a9a1e30b3afd7c59c69b0b85"
+        },
+        {
+          "path": "Frontend/tests/ui-actions.test.mjs",
+          "deleted": false,
+          "sha256": "a77c4ea73053e63c1f0c24252a31f4771af35d9784445873a488d54d1664928c"
+        }
+      ],
+      "head": "b15d77f1589ff9b589214a7aeb27937c4a934ef8",
+      "commits": [
+        "7204a7b feat(realtime-ui): manage occupancy subscriptions and reconnect state",
+        "ea6ff18 feat(check-in-ui): add shared scanning desk and admission feedback",
+        "317e316 feat(organizer-ui): add event forms staff assignment and lifecycle actions",
+        "4a9bdcd feat(organizer-ui): add paginated events and realtime dashboard",
+        "b15d77f test(frontend): verify sessions realtime forms and action retries"
+      ]
+    },
+    "backend": {
+      "branch": "feature/backend-realtime-lifecycle",
+      "files": [
+        {
+          "path": "Backend/.coverage",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Backend/.env.example",
+          "deleted": false,
+          "sha256": "4eb30cfb52f957d02a136032db9acd8a63bb2bb71accbe00a1cccc18a07e26ef"
+        },
+        {
+          "path": "Backend/.gitignore",
+          "deleted": false,
+          "sha256": "a6f04638ebc4d03fe1629544d5da59a13d7925c7639c98baff86886c67c44c31"
+        },
+        {
+          "path": "Backend/README.md",
+          "deleted": false,
+          "sha256": "41008f2e19fd9fbad8ed49ffe02d182e1fe908e35a95ea28a528749524676604"
+        },
+        {
+          "path": "Backend/alembic/env.py",
+          "deleted": false,
+          "sha256": "e4b0b1a24eb050706c8605119e98f19428bc8fa5c923620f7ff5d0eea9cfdb3d"
+        },
+        {
+          "path": "Backend/alembic/versions/0001_initial_schema.py",
+          "deleted": false,
+          "sha256": "eb5f7f6c5d1501ab335663d3ba8b80114d61da52ea1e43bc44d03ff962086e0c"
+        },
+        {
+          "path": "Backend/app/access.py",
+          "deleted": false,
+          "sha256": "e1f55368e5bc51857ff42011c7b62ffd14d4ae75246daa40e5f8cfb235d57add"
+        },
+        {
+          "path": "Backend/app/config.py",
+          "deleted": false,
+          "sha256": "afc720a88af40c6c2997800eacdefc452295b9f6823a9751961de9d6ed3a17b5"
+        },
+        {
+          "path": "Backend/app/deps.py",
+          "deleted": false,
+          "sha256": "2e99637b634f91917217398715e2345f3101779045ceac8ff434b71fc78a21e0"
+        },
+        {
+          "path": "Backend/app/errors.py",
+          "deleted": false,
+          "sha256": "44235dca4572832ce6a769d121a014acb1c99d69b4d6a2e859dc6388f0808e9c"
+        },
+        {
+          "path": "Backend/app/main.py",
+          "deleted": false,
+          "sha256": "2e7ddeda3776e590515b1ae3ce7853a97a53841b786ff122c49f98660c0b83c2"
+        },
+        {
+          "path": "Backend/app/models.py",
+          "deleted": false,
+          "sha256": "33c8d0f1b808cab0f2bada2e37293e2292cb7d7776e76425f7fbd7be15be8ed3"
+        },
+        {
+          "path": "Backend/app/realtime.py",
+          "deleted": false,
+          "sha256": "03bda6da33eb9ac9543089bd51ae33e406344aa0fdc2ca99e63d40fa1232ebfa"
+        },
+        {
+          "path": "Backend/app/routers/auth.py",
+          "deleted": false,
+          "sha256": "4c1f6accb240141c7983f706328322b3e2ac2697253139c5444c731f77237cab"
+        },
+        {
+          "path": "Backend/app/routers/checkins.py",
+          "deleted": false,
+          "sha256": "3971cec0cbe3b183fd11218ca985abdf4f6a6de169461fdc9cf4f53ed7fe3013"
+        },
+        {
+          "path": "Backend/app/routers/events.py",
+          "deleted": false,
+          "sha256": "10e361c9af03122d18a81d664f511e8134bf71515dfe0a6b05b52b688e8139e2"
+        },
+        {
+          "path": "Backend/app/routers/realtime.py",
+          "deleted": false,
+          "sha256": "7c582e0cfde3ce2a369287ed20bdda30ea69fb9e136269fb91ddeee9093180df"
+        },
+        {
+          "path": "Backend/app/routers/registrations.py",
+          "deleted": false,
+          "sha256": "038237fc4a830095c52fb695d033afa3591f499fe26e4d4eb41837cc92f201b5"
+        },
+        {
+          "path": "Backend/app/routers/staff.py",
+          "deleted": false,
+          "sha256": "1624a304bf7ef87580019e2f3007fcb3a25d389ffc3168421fa527ad571a3caf"
+        },
+        {
+          "path": "Backend/app/routers/tickets.py",
+          "deleted": false,
+          "sha256": "8846c4f090aaed894e4fac8b9ded50ab984fb89e3e7b8e735dabd1af50360e81"
+        },
+        {
+          "path": "Backend/app/schemas.py",
+          "deleted": false,
+          "sha256": "4fdeebafa764d366ab33a359cf4312c469df9c2dfe728e73eac23a026f79efb7"
+        },
+        {
+          "path": "Backend/app/security.py",
+          "deleted": false,
+          "sha256": "63add87391c09eb6a2105a93e280ae3423b2c11f5fdfdc373081368eb50c824c"
+        },
+        {
+          "path": "Backend/app/seed.py",
+          "deleted": false,
+          "sha256": "bb367b1762075fdecc17332b374c4e1a592dc070e2e50b18ab733219947c021b"
+        },
+        {
+          "path": "Backend/app/services/lifecycle.py",
+          "deleted": false,
+          "sha256": "41fd6a3ec2660730bba66531ce3d88f0c506e3ed7f03f86f07492f288447db36"
+        },
+        {
+          "path": "Backend/app/services/notifier.py",
+          "deleted": false,
+          "sha256": "dfa585191709a782a95e8e2a1fedc827d3a6dc5bd0e5296d139b9fc6bb7d081d"
+        },
+        {
+          "path": "Backend/docs/authentication.md",
+          "deleted": false,
+          "sha256": "2298a55f1e3fcb50d922553386ebdc47c520b39682adedb36bb9089061a8c83e"
+        },
+        {
+          "path": "Backend/docs/performance.md",
+          "deleted": false,
+          "sha256": "c98f0c9e7c9e8382c73786d5295faaa2650aab3766ebfa5b9496bcc61b7b1e48"
+        },
+        {
+          "path": "Backend/docs/realtime.md",
+          "deleted": false,
+          "sha256": "5170f35234ae5b2f617b6b5c21119fd4f9e4f4879299dc2900815a4a2d1fa5be"
+        },
+        {
+          "path": "Backend/docs/testing.md",
+          "deleted": false,
+          "sha256": "fed6d3ef812f4f2a0cc0cdf35c317d6922216e482f3b09016c8847deec30aed7"
+        },
+        {
+          "path": "Backend/docs/validation-errors.md",
+          "deleted": false,
+          "sha256": "e2de3080f261bb3aec0b4d320565307f897f875c8886616606f90f01ee5707e2"
+        },
+        {
+          "path": "Backend/requirements.lock",
+          "deleted": false,
+          "sha256": "5d121b3b7f9128c7ae1350e936787a69de22cc54dfa205fc8d14392f29b9fff8"
+        },
+        {
+          "path": "Backend/requirements.txt",
+          "deleted": false,
+          "sha256": "ecc9e2f4b13bcafbb884b03dfdc04b66d345e15c8d14dc492e250715a3ce99e7"
+        },
+        {
+          "path": "Backend/scripts/bench_events.py",
+          "deleted": false,
+          "sha256": "0b850f9f1d0f171baf09647b955d58f685b16b4398e9b09e754cf456eb258d64"
+        },
+        {
+          "path": "Backend/scripts/check_bench_clean.py",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Backend/scripts/check_indexes.py",
+          "deleted": false,
+          "sha256": "223e97cedbd9ad89178879bff077534eb5eb162d74e4889d0e02a0dd3ecd051a"
+        },
+        {
+          "path": "Backend/scripts/clean_race_leftovers.py",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "Backend/tests/conftest.py",
+          "deleted": false,
+          "sha256": "8903100efb88004db19fd8cbd9dcde99a179f4271d670aa48cbfb2fd674bc2bf"
+        },
+        {
+          "path": "Backend/tests/test_auth.py",
+          "deleted": false,
+          "sha256": "9ba2e44aaae8302ab50dac4a3ecb1aa1df7e44b721fd95488b8ce144a954fd37"
+        },
+        {
+          "path": "Backend/tests/test_checkins.py",
+          "deleted": false,
+          "sha256": "6e8609e0f41e8901acebb34219852d74fe84f6f97fbe45b51ae0b0011d6ef250"
+        },
+        {
+          "path": "Backend/tests/test_concurrency_pg.py",
+          "deleted": false,
+          "sha256": "89aed0f95a662f08b8666f9db26397fbc8516b072c0544fd7cf28c6ce89fe599"
+        },
+        {
+          "path": "Backend/tests/test_events.py",
+          "deleted": false,
+          "sha256": "4e46ebc35fdacadc25cf0a2020fc9dd40b58357885fe8216189cb9eb18c0bec6"
+        },
+        {
+          "path": "Backend/tests/test_final_review.py",
+          "deleted": false,
+          "sha256": "3961fa00a5297d56ccf6a4439d038ba3a3a2b4f9c5a23c441f70e73abccc0556"
+        },
+        {
+          "path": "Backend/tests/test_lifecycle_auto.py",
+          "deleted": false,
+          "sha256": "f7a4b7d307bea491bdb8e985a4f50ebe9beca75b081451405626bace9c599061"
+        },
+        {
+          "path": "Backend/tests/test_realtime.py",
+          "deleted": false,
+          "sha256": "1bc871df7d6c50fe8a7fb0838f633c00f1b7b8cace08d12a32fa221f5660e953"
+        },
+        {
+          "path": "Backend/tests/test_release.py",
+          "deleted": false,
+          "sha256": "0182346000597fda52d3bdbc3f763e0512bbcda9de13cafdff14f1adb847f168"
+        },
+        {
+          "path": "Backend/tests/test_seed.py",
+          "deleted": false,
+          "sha256": "02251223f31562d5f3132aee44d2158aa2b9929934a56276b69ef057ac5eb1d1"
+        }
+      ],
+      "head": "0132f6037efc32395f5a8116f6d5417d00738022",
+      "commits": [
+        "4b4a9bb chore(backend): pin dependencies and configure SMTP transport",
+        "ae35600 fix(db): freeze migrations and normalize event timestamps",
+        "567dbec feat(auth): add OAuth2 login and numbered demo aliases",
+        "1d8324e fix(booking): enforce ownership and transactional ticket invariants",
+        "8ca46bb feat(events): synchronize lifecycle and paginated realtime contracts",
+        "6c0acf6 feat(notifications): send ticket emails with QR attachments",
+        "2c0b8e6 feat(seed): add repeatable numbered accounts and event history",
+        "9205df7 test(backend): cover auth lifecycle SMTP and PostgreSQL concurrency",
+        "293e9d7 perf(events): benchmark indexes with rollback-safe fixtures",
+        "f77a513 chore(backend): exclude local artifacts and remove obsolete cleanup tools",
+        "0132f60 docs(backend): document final API behavior and reproducible checks"
+      ]
+    },
+    "docs": {
+      "branch": "feature/uiux-v2-documentation",
+      "files": [
+        {
+          "path": "Frontend/README.md",
+          "deleted": false,
+          "sha256": "cc0d957837719ede474ac69496df53d1a06928c2ed8e48decf611407c34cb16c"
+        },
+        {
+          "path": "Frontend/docs/architecture.md",
+          "deleted": false,
+          "sha256": "1b96c6000bcc4f77269b612865d6fcd9c64523e4220bb578593c43ed813ad31d"
+        },
+        {
+          "path": "Frontend/docs/authentication.md",
+          "deleted": false,
+          "sha256": "bb1493d7fe405dbbd06ed16c206747bb3ed8e950bd6723a7441dbcb40ddb6015"
+        },
+        {
+          "path": "Frontend/docs/demo-scenarios.md",
+          "deleted": false,
+          "sha256": "33da79b027c12091dcf6d671c1b16402148a784145fe1f685b2eeeae645fa260"
+        },
+        {
+          "path": "Frontend/docs/realtime-dashboard.md",
+          "deleted": false,
+          "sha256": "37c7576dfdbcf2829a6d4b39645befc4a15a94ecadca7d54a58039608dc2faae"
+        },
+        {
+          "path": "docs/README.md",
+          "deleted": false,
+          "sha256": "71d4123ef5a4ba8af0143a2a433050b90edb70346197596b9517d787b3cde4e0"
+        },
+        {
+          "path": "docs/assets/fe-detail.png",
+          "deleted": false,
+          "sha256": "fd1777017fc4db62a5bcbde73238486ffc7be7bdf25b3d9ae89e4fcb411e4e25"
+        },
+        {
+          "path": "docs/assets/fe-events.png",
+          "deleted": false,
+          "sha256": "3d287d304f9853a45ba42f6e9b5847814d6e758f5a827929c7b96f80d2da41d5"
+        },
+        {
+          "path": "docs/assets/fe-live.png",
+          "deleted": false,
+          "sha256": "0c2c808a3b95ed7df6fd7e934c084fa27b9f753e2cbf23705e40ad84fd596558"
+        },
+        {
+          "path": "docs/assets/fe-login.png",
+          "deleted": false,
+          "sha256": "f5f89610deced5103e8a1f7c2d882cbba865af27109f81f9686d2dab8b19d9c6"
+        },
+        {
+          "path": "docs/assets/fe-manage.png",
+          "deleted": false,
+          "sha256": "f748d7828d858ffb47dd0dbb025e7d992e7458b995d4d5d7b03648519cecd6ab"
+        },
+        {
+          "path": "docs/assets/fe-organizer.png",
+          "deleted": false,
+          "sha256": "c4bd46d965f692c3c111e836bee5a6db900becf3d7f31b5016817e4887c721e4"
+        },
+        {
+          "path": "docs/assets/fe-staff.png",
+          "deleted": false,
+          "sha256": "2d3f0ab08c378241fac9a356b5c88f478b96b50208d507c9d6952ffb3969d2bb"
+        },
+        {
+          "path": "docs/assets/preview-pagination-fixture.json",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/swagger.png",
+          "deleted": false,
+          "sha256": "bd80ecf5fef73f2a7322e36b234d117f9bdb283f28d2a1f9e949bafad7588387"
+        },
+        {
+          "path": "docs/assets/uiux-v2-auth-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-create-desktop.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-create-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-detail-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-door-all-errors.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-door-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-events-desktop.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-live-desktop.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-live-disconnected.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-live-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-manage-desktop.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-manage-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-organizer-mobile-before.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-overview-desktop.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-pass-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-qr-cancelled-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-qr-used-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-qr-valid-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-responsive-audit.json",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-search-page-two.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-tickets-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/assets/uiux-v2-tickets-statuses-mobile.png",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/design.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/final-review.md",
+          "deleted": false,
+          "sha256": "74520271be77c405f09892ba7a9ccf2e4ebf0a6125111750335dcd9e5c7be91c"
+        },
+        {
+          "path": "docs/frontend-mvp-review.md",
+          "deleted": false,
+          "sha256": "909857549920ed27b52eb41f5ca9e0de4d0156bc3f9636ab249b3bd883526091"
+        },
+        {
+          "path": "docs/gioi-han-ky-thuat.md",
+          "deleted": false,
+          "sha256": "dc1a5e4d947ed6291b2f76190f71de937fa0df33953ceeb3dc925c652db08f07"
+        },
+        {
+          "path": "docs/phase-0-websocket.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/phase-1-contract.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/phase-2-perf.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/requirements-review.md",
+          "deleted": false,
+          "sha256": "9346a9e9df4bf5057c175c9fd0f4e7b9fb2d8307db2032c530d7af24fb9324eb"
+        },
+        {
+          "path": "docs/roadmap.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "docs/uiux-v2-review.md",
+          "deleted": true,
+          "sha256": null
+        },
+        {
+          "path": "readme.md",
+          "deleted": false,
+          "sha256": "09614d9eb735f648b377a3e7354d7d2240ce223eea62b34e73ad63017271d202"
+        }
+      ]
+    }
+  }
+}

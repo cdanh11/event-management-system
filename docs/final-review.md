@@ -66,3 +66,5 @@ Source có thể chốt cho demo theo phạm vi trên. Việc nộp cần commit
 ## Dataset mở rộng ngày 07/10/2026
 
 Seed idempotent bổ sung 2 organizer, 5 staff, 100 attendee, 10 event mở và 5 completed, 278 registration/ticket, 75 check-in và 30 assignment. Tài khoản đăng nhập bằng alias đánh số hoặc email; không reset DB cũ. Đã kiểm chứng chạy lại không thêm bản ghi hoặc phục hồi trạng thái người dùng đã đổi. Tổng database hiện tại lớn hơn dataset do giữ các bản ghi cũ.
+
+Trước push: source-map-js trong lockfile được nâng từ 1.2.1 lên 1.2.2 bằng commit riêng; npm audit sau cập nhật không còn cảnh báo.
