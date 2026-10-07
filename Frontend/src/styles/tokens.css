@@ -1,0 +1,63 @@
+/* Evently v2: plain CSS tokens. Orange means live activity or urgency. */
+:root {
+  --ink: #1B1433;
+  --pass-violet: #5B2EE0;
+  --paper: #FBFAFD;
+  --haze: #E9E5F4;
+  --door-orange: #E8590C;
+  --door-orange-text: #B8430A;
+  --go-green: #13795B;
+  --font-display: 'Bricolage Grotesque', 'Be Vietnam Pro', sans-serif;
+  --font-body: 'Be Vietnam Pro', sans-serif;
+
+  --color-primary-900: var(--ink);
+  --color-primary-700: var(--ink);
+  --color-primary-600: var(--pass-violet);
+  --color-primary-500: var(--pass-violet);
+  --color-primary-100: var(--haze);
+  --color-primary-50: var(--paper);
+  --color-accent-600: var(--door-orange-text);
+  --color-accent-500: var(--door-orange);
+  --color-accent-100: #FFF0E7;
+
+  --status-draft: #F1F0F4;
+  --status-draft-fg: #625D71;
+  --status-draft-bd: var(--haze);
+  --status-published: var(--haze);
+  --status-published-fg: var(--pass-violet);
+  --status-published-bd: #D3C9EF;
+  --status-ongoing: #EDE9F7;
+  --status-ongoing-fg: #51416B;
+  --status-ongoing-bd: #D3C9EF;
+  --status-started: #E7F3ED;
+  --status-started-fg: var(--go-green);
+  --status-started-bd: #C1DFD0;
+  --status-completed: #EDF0F2;
+  --status-completed-fg: #4A5964;
+  --status-completed-bd: #D7DEE3;
+  --status-cancelled: #FCECED;
+  --status-cancelled-fg: #A6293D;
+  --status-cancelled-bd: #F0CCD2;
+  --success: var(--go-green);
+  --warning: var(--door-orange-text);
+  --danger: #A6293D;
+  --info: var(--pass-violet);
+  --color-danger: var(--danger);
+
+  --text-strong: var(--ink);
+  --text: var(--ink);
+  --text-muted: #6A6485;
+  --border: var(--haze);
+  --surface: #FFFFFF;
+  --surface-alt: #F3F0F8;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgb(27 20 51 / 4%);
+  --shadow-md: 0 4px 16px rgb(27 20 51 / 6%);
+  --shadow-lg: 0 12px 32px rgb(27 20 51 / 12%);
+  --transition-fast: 150ms ease;
+  --container-max: 1120px;
+}
