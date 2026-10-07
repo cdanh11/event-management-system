@@ -12,7 +12,7 @@ Thực hiện [hướng dẫn cài đặt ở README gốc](../readme.md#cài-đ
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-Mở `/docs`, chọn Authorize, nhập email hoặc alias demo vào username và mật khẩu demo. OAuth2 password flow gọi `/auth/token`; `/auth/login` JSON vẫn dành cho frontend. Chạy một worker vì WS room và ticket nằm trong RAM tiến trình. `/health` kiểm tra ứng dụng còn phản hồi, không kiểm tra DB.
+Mở `/docs`, chọn Authorize, nhập email hoặc username đánh số vào username và mật khẩu tài khoản. OAuth2 password flow gọi `/auth/token`; `/auth/login` JSON vẫn dành cho frontend. Chạy một worker vì WS room và ticket nằm trong RAM tiến trình. `/health` kiểm tra ứng dụng còn phản hồi, không kiểm tra DB.
 
 ## Cấu trúc và trách nhiệm
 
@@ -28,7 +28,7 @@ Mở `/docs`, chọn Authorize, nhập email hoặc alias demo vào username và
 | app/realtime.py | WS rooms, snapshot và ticket dùng một lần |
 | app/services/lifecycle.py | Tự chuyển trạng thái theo giờ |
 | app/services/notifier.py | Webhook async, SMTP trong thread, email/QR và xử lý lỗi transport |
-| app/seed.py | Dữ liệu demo có registration/ticket thật, counter khớp dữ liệu |
+| app/seed.py | Dữ liệu mẫu có registration/ticket thật, counter khớp dữ liệu |
 | alembic/ | Migration 0001 schema cố định, 0002 composite index |
 | tests/, scripts/ | Kiểm thử và benchmark PostgreSQL |
 

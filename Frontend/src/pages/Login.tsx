@@ -9,12 +9,6 @@ import { friendlyError, fieldErrors } from '../lib/errors';
 import { postLoginPath } from '../lib/navigation';
 import { useToast } from '../components/ui/Toast';
 
-const DEMOS = [
-  { label: strings.auth.demoRoles.attendee, email: 'user100' },
-  { label: strings.auth.demoRoles.staff, email: 'staff1' },
-  { label: strings.auth.demoRoles.organizer, email: 'organizer1' },
-];
-
 export function Login() {
   const { login, register, user, ready } = useAuth();
   const navigate = useNavigate();
@@ -41,19 +35,18 @@ export function Login() {
   };
   const blur = (field: keyof typeof values) => setTouched((before) => ({ ...before, [field]: true }));
   const visibleError = (field: keyof typeof values) => serverErrors[field] || (touched[field] ? errors[field] : '');
-  const submit = async (e?: React.FormEvent, demo?: {email:string}) => {
-    e?.preventDefault();
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (busy || !ready) return;
     setTouched({ name: signup, email: true, password: true, confirm: signup });
     setServerErrors({}); setError('');
-    if (!demo && (errors.email || errors.password || (signup && (errors.name || errors.confirm)))) return;
+    if (errors.email || errors.password || (signup && (errors.name || errors.confirm))) return;
     setBusy(true);
     try {
-      if (demo) setValues((before) => ({...before,email:demo.email,password:'123456'}));
-      const account = signup && !demo
+      const account = signup
         ? await register(values.name.trim(), values.email.trim(), values.password)
-        : await login(demo?.email ?? values.email.trim(), demo ? '123456' : values.password);
-      if (signup && !demo) toast(strings.auth.created, 'success');
+        : await login(values.email.trim(), values.password);
+      if (signup) toast(strings.auth.created, 'success');
       navigate(postLoginPath(account.role, location.state?.from), {replace:true});
     } catch (err) { setError(friendlyError(err)); setServerErrors(fieldErrors(err)); }
     finally { setBusy(false); }
@@ -67,8 +60,8 @@ export function Login() {
         {signup && <p className="hint">{strings.auth.signupBody}</p>}
         {(location.state?.expired || sessionStorage.getItem('evently-session-expired')) && <p role="status">{strings.auth.sessionExpired}</p>}
         {signup && <Field label={strings.auth.name} error={visibleError('name')}><Input value={values.name} autoComplete="name" onChange={(e) => change('name',e.target.value)} onBlur={() => blur('name')} disabled={busy} required /></Field>}
-        <Field label={signup ? strings.auth.email : strings.auth.loginIdentifier} hint={signup ? undefined : strings.auth.loginHint} error={visibleError('email')}><Input value={values.email} type={signup ? 'email' : 'text'} autoComplete={signup ? 'email' : 'username'} onChange={(e) => change('email',e.target.value)} onBlur={() => blur('email')} disabled={busy} required /></Field>
-        <Field label={strings.auth.password} hint={signup ? strings.auth.passwordHint : undefined} error={visibleError('password')}><span className="password-wrap">
+        <Field label={signup ? strings.auth.email : strings.auth.loginIdentifier} error={visibleError('email')}><Input value={values.email} type={signup ? 'email' : 'text'} autoComplete={signup ? 'email' : 'username'} onChange={(e) => change('email',e.target.value)} onBlur={() => blur('email')} disabled={busy} required /></Field>
+        <Field label={strings.auth.password} error={visibleError('password')}><span className="password-wrap">
           <Input value={values.password} type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} onChange={(e) => change('password',e.target.value)} onBlur={() => blur('password')} disabled={busy} required />
           <button type="button" className="icon" aria-label={showPassword ? strings.auth.hidePassword : strings.auth.showPassword} onClick={() => setShowPassword((before) => !before)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
         </span></Field>
@@ -77,7 +70,12 @@ export function Login() {
         <Button type="submit" loading={busy} disabled={!ready}>{signup ? strings.auth.signUp : strings.auth.signIn}</Button>
         <p className="hint">{signup ? strings.auth.signupNote : strings.auth.newHere}{' '}
           <Link to={signup ? '/login' : '/login?mode=signup'} state={location.state} onClick={() => {setError('');setTouched({});setServerErrors({});}}>{signup ? strings.auth.backToSignIn : strings.auth.createAccount}</Link></p>
-        {!signup && <div className="auth-demo"><p>{strings.auth.quickDemo}</p><div>{DEMOS.map((demo) => <Button key={demo.email} variant="secondary" size="sm" type="button" disabled={busy || !ready} onClick={() => void submit(undefined,demo)}>{demo.label}</Button>)}</div></div>}
+        {!signup && <dl className="auth-accounts">
+          <div><dt>{strings.auth.accountRoles.attendee}:</dt><dd>{strings.auth.sampleAccounts.attendee}</dd></div>
+          <div><dt>{strings.auth.accountRoles.staff}:</dt><dd>{strings.auth.sampleAccounts.staff}</dd></div>
+          <div><dt>{strings.auth.accountRoles.organizer}:</dt><dd>{strings.auth.sampleAccounts.organizer}</dd></div>
+          <div><dt>{strings.auth.password}:</dt><dd>{strings.auth.sampleAccounts.password}</dd></div>
+        </dl>}
       </form>
     </main>
   </div>;

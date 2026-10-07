@@ -55,7 +55,7 @@ README gốc có cài đặt, tài khoản, thao tác từng vai trò, Swagger O
 
 Đã bỏ mock client, component/hook không dùng, tài liệu phase/roadmap cũ, cấu hình Tailwind không dùng, script cleanup DB hardcode và file .coverage bị theo dõi. Giữ source, migration, tests, tài liệu kỹ thuật, ERD, ảnh minh chứng, báo cáo Word và giấy phép font. .venv, node_modules, dist/cache là dữ liệu chạy/build được ignore, không phải nội dung source cần nộp.
 
-Checkout integration là bản chạy/test đầy đủ. Các branch được xếp theo phụ thuộc, có commit chức năng thật. Xem [thứ tự merge và danh sách file](merge-order.md). tools/sync_review_worktrees.py chỉ dùng trước khi đóng commit và bị chặn khi manifest đã đánh dấu committed.
+Checkout integration là bản chạy/test đầy đủ. Các branch được xếp theo phụ thuộc, có commit chức năng thật. Xem [thứ tự merge và danh sách file](merge-order.md). Đã bỏ script đồng bộ worktree và manifest chia nhánh sau khi hoàn tất commit; chúng không phục vụ runtime, kiểm thử hay triển khai đồ án.
 
 ## Giới hạn được chấp nhận trong MVP
 

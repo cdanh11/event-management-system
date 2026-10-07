@@ -190,13 +190,15 @@ Base backend đã merge. PR #10 bao gồm cả các nhóm attendee/operations b�
 
 ### chore(frontend): remove unused mock data and async wrapper
 
+Các đường dẫn dưới đây là file đã xóa trong commit này, không phải mock đang được sử dụng.
+
 - `Frontend/src/hooks/useAsync.ts`
 - `Frontend/src/mock/data.ts`
 - `Frontend/src/mock/mockApi.ts`
 
 ### chore(review): retain scoped worktree synchronization utility
 
-- `tools/sync_review_worktrees.py`
+Commit lịch sử này từng thêm script đồng bộ worktree. Script cùng manifest chia nhánh đã được xóa trong đợt dọn source cuối vì không phục vụ chạy, kiểm thử hay triển khai ứng dụng.
 
 ### fix(deps): patch source-map-js denial-of-service advisory
 

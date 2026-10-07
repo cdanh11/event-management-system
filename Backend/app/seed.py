@@ -1,4 +1,4 @@
-"""Bộ dữ liệu demo mở rộng, bổ sung an toàn bằng ``python -m app.seed``.
+"""Bộ dữ liệu mẫu mở rộng, bổ sung an toàn bằng ``python -m app.seed``.
 
 2 organizer, 5 staff, 100 attendee; 10 sự kiện mở đăng ký và 5 đã hoàn thành.
 Chạy lại không nhân bản hoặc đặt lại dữ liệu người dùng đã thao tác.
@@ -21,7 +21,7 @@ OPEN_TITLES = [
 ]
 PAST_TITLES = [
     "Python Foundation Seminar", "Database Design Lab", "Git Collaboration Workshop",
-    "API Security Seminar", "Backend Demo Day",
+    "API Security Seminar", "Backend Engineering Day",
 ]
 OPEN_COUNTS = [5, 8, 10, 12, 15, 18, 20, 25, 30, 35]
 
@@ -32,7 +32,7 @@ def run() -> None:
 
 
 def _seed(db: Session) -> None:
-    """Một transaction cho toàn bộ fixture; giữ nguyên dữ liệu demo có sẵn.
+    """Một transaction cho toàn bộ fixture; giữ nguyên dữ liệu có sẵn.
 
     Email và cặp organizer/title nhận diện dataset. Nếu tài khoản đánh số
     đã có role khác, dừng thay vì tự đổi quyền hoặc mật khẩu của tài khoản đó.
@@ -46,9 +46,9 @@ def _seed(db: Session) -> None:
             email = f"{alias}@demo.com"
             account = db.scalar(select(User).where(User.email == email))
             if account is not None and account.role != role:
-                raise ValueError(f"Demo account {email} already has another role; no data changed")
+                raise ValueError(f"Sample account {email} already has another role; no data changed")
             if account is None:
-                # Chung mật khẩu demo, hash một lần để seed 107 user nhanh hơn.
+                # Chung mật khẩu mẫu, hash một lần để seed 107 user nhanh hơn.
                 if password_hash is None:
                     password_hash = hash_password("123456")
                 account = User(name=alias, email=email, role=role, avatar_url="", password_hash=password_hash)
@@ -60,9 +60,15 @@ def _seed(db: Session) -> None:
     for completed, titles in [(False, OPEN_TITLES), (True, PAST_TITLES)]:
         for index, title in enumerate(titles, start=1):
             organizer = users[f"organizer{1 + (index - 1) % 2}"]
-            title = f"[Demo] {title}"
-            existing = db.scalar(select(Event).where(Event.organizer_id == organizer.id, Event.title == title))
+            # Nhận diện cả tên cũ để bỏ nhãn mẫu mà không tạo lại event/vé.
+            legacy_title = "Backend Demo Day" if title == "Backend Engineering Day" else title
+            existing = db.scalar(select(Event).where(
+                Event.organizer_id == organizer.id,
+                Event.title.in_([title, f"[Demo] {legacy_title}"]),
+            ))
             if existing is not None:
+                if existing.title != title:
+                    existing.title = title
                 continue  # Không mở lại event đã kết thúc/hủy hoặc khôi phục vé đã dùng.
             start = (now - timedelta(days=7 * index) if completed else now + timedelta(days=7 + index * 3)).replace(hour=9, minute=0, second=0, microsecond=0)
             count = 20 if completed else OPEN_COUNTS[index - 1]
@@ -86,7 +92,7 @@ def _seed(db: Session) -> None:
                 reg = Registration(event_id=event.id, attendee_id=attendee.id, registered_at=registered)
                 db.add(reg)
                 db.flush()
-                code = f"DEMO-{'PAST' if completed else 'OPEN'}-{index:02}-U{number:03}"
+                code = f"EVT-{'PAST' if completed else 'OPEN'}-{index:02}-U{number:03}"
                 used = completed and offset < 15
                 ticket = Ticket(registration_id=reg.id, ticket_code=code, qr_value=code,
                                 status="USED" if used else "VALID", issued_at=registered)
@@ -98,7 +104,7 @@ def _seed(db: Session) -> None:
                                    checked_in_by=staff.id, checked_in_at=scanned, status="SUCCESS"))
             created_events += 1
     db.commit()
-    print(f"Demo dataset ready: 107 numbered accounts; {created_events} events added (target: 10 open, 5 completed). Existing data preserved.")
+    print(f"Sample dataset ready: 107 numbered accounts; {created_events} events added (target: 10 open, 5 completed). Existing data preserved.")
 
 
 if __name__ == "__main__":

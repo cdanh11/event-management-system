@@ -29,13 +29,13 @@ def _authenticate(email: str, password: str, db: Session) -> User:
 
     user = db.scalar(select(User).where(User.email == login_email(email)))
     if user is None or len(password) > 128 or not verify_password(password, user.password_hash):
-        api_error(401, "INVALID_CREDENTIALS", "Email or password is incorrect")
+        api_error(401, "INVALID_CREDENTIALS", "Username, email or password is incorrect")
     return user
 
 
 @router.post("/auth/token", response_model=TokenOut, tags=["auth"])
 def oauth2_token(response: Response, form: OAuth2PasswordRequestFormStrict = Depends(), db: Session = Depends(get_db)):
-    """OAuth2 password flow cho Swagger: username là email; grant_type=password.
+    """OAuth2 password flow: username nhận tên tài khoản hoặc email; grant_type=password.
 
     Quyền dùng RBAC từ DB, không để scope do client gửi lên nâng quyền.
     JSON /auth/login vẫn được giữ để web client hiện tại không bị gián đoạn.
@@ -77,7 +77,7 @@ def _token_body(user: User, access: str) -> dict:
 
 @router.post("/auth/login", response_model=TokenOut, tags=["auth"])
 def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
-    """Đăng nhập bằng email + mật khẩu -> trả access token và đặt refresh cookie.
+    """Đăng nhập bằng username hoặc email + mật khẩu -> trả JWT và refresh cookie.
 
     Lưu ý: đây là endpoint **sync** hợp lệ vì công việc chính là truy vấn
     DB đồng bộ (verify) và tạo JWT (thuần CPU) — không có gì để await.

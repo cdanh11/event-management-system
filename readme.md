@@ -1,6 +1,6 @@
 # Evently — Đồ án FastAPI
 
-Đồ án môn **Công nghệ Lập trình Hiện đại**, tìm hiểu và xây dựng dịch vụ backend với FastAPI. Evently minh họa quản lý sự kiện, đăng ký vé và check-in qua ba vai trò. Frontend là web MVP phục vụ sử dụng và demo API.
+Đồ án môn **Công nghệ Lập trình Hiện đại**, tìm hiểu và xây dựng dịch vụ backend với FastAPI. Evently minh họa quản lý sự kiện, đăng ký vé và check-in qua ba vai trò. Frontend là web MVP phục vụ sử dụng API.
 
 ## Công nghệ và kiến trúc
 
@@ -72,7 +72,7 @@ Copy-Item .env.example .env
 
 API: `http://localhost:8000` · Swagger: `http://localhost:8000/docs` · OpenAPI: `/openapi.json` · Liveness: `/health`.
 
-Seed bổ sung dataset đánh số ngay cả khi DB đã có dữ liệu; chạy lại không nhân bản hoặc đặt lại dữ liệu của các lần demo trước. Thời gian sự kiện mẫu được tính từ lúc seed. Nếu vé mẫu đã dùng hoặc sự kiện đã kết thúc, hãy tạo sự kiện mới theo kịch bản bên dưới.
+Seed bổ sung dataset đánh số ngay cả khi DB đã có dữ liệu; chạy lại không nhân bản hoặc đặt lại dữ liệu của các lần sử dụng trước. Thời gian sự kiện mẫu được tính từ lúc seed. Nếu vé mẫu đã dùng hoặc sự kiện đã kết thúc, hãy tạo sự kiện mới theo kịch bản bên dưới.
 
 **3. Frontend** — terminal thứ hai, từ thư mục gốc:
 
@@ -85,7 +85,7 @@ npm run dev -- --port 5173
 
 Mở `http://localhost:5173`. Dùng nhất quán `localhost` cho frontend và API để refresh cookie hoạt động. Dừng server bằng Ctrl+C; `docker compose down` dừng DB và giữ volume.
 
-## Email vé và QR khi demo
+## Email vé và QR
 
 Mailpit là hộp thư SMTP local, giữ thư ngay trên máy và không chuyển tới email ngoài. Khởi chạy từ thư mục gốc:
 
@@ -107,7 +107,7 @@ Mở `http://localhost:8025`. Đăng ký một sự kiện Published bằng atte
 
 SMTP thật có thể cấu hình thêm username/password và STARTTLS/SSL theo nhà cung cấp. Thứ tự ưu tiên: SMTP → webhook → simulated. Lỗi gửi nền không làm mất vé; thông báo thủ công lỗi transport trả 502. Xem [tài liệu Mailpit](https://mailpit.axllent.org/docs/install/docker/).
 
-## Tài khoản demo
+## Tài khoản mẫu
 
 Mật khẩu chung: **123456**.
 
@@ -117,9 +117,9 @@ Mật khẩu chung: **123456**.
 | STAFF (5) | staff1…staff5 (hoặc staff1@demo.com…) | Check-in sự kiện được phân công |
 | ATTENDEE (100) | user1…user100 (hoặc user1@demo.com…) | Đăng ký, xem vé và hủy đăng ký |
 
-Dataset mới có 10 Published còn chỗ đăng ký, 5 Completed; 278 đăng ký/vé và 75 check-in thật (15 mỗi sự kiện đã hoàn thành), 30 assignment. Hai organizer chia nhau sở hữu sự kiện; năm staff được phân công theo vòng. user100 chưa đăng ký các event mở, tiện thử Register. Vé mở có mã `DEMO-OPEN-01-U001`; vé đã check-in có trạng thái USED. Muốn thử scan mới, organizer chuyển một event mở sang STARTED trước. Dữ liệu cũ được giữ nên tổng DB hiện có thể lớn hơn dataset này.
+Dataset mới có 10 Published còn chỗ đăng ký, 5 Completed; 278 đăng ký/vé và 75 check-in thật (15 mỗi sự kiện đã hoàn thành), 30 assignment. Hai organizer chia nhau sở hữu sự kiện; năm staff được phân công theo vòng. user100 chưa đăng ký các event mở, tiện thử Register. Vé mở có mã `EVT-OPEN-01-U001` (vé cũ vẫn giữ mã đã phát hành); vé đã check-in có trạng thái USED. Muốn thử scan mới, organizer chuyển một event mở sang STARTED trước. Dữ liệu cũ được giữ nên tổng DB hiện có thể lớn hơn dataset này.
 
-Username ngắn chỉ là alias demo trỏ tới email đánh số, không xác thực theo tên hiển thị và không đổi quyền. Đăng ký tài khoản mới từ trang login luôn tạo ATTENDEE. Organizer có thể tạo STAFF trong tab Staff.
+Username ngắn chỉ là username đánh số trỏ tới email đánh số, không xác thực theo tên hiển thị và không đổi quyền. Đăng ký tài khoản mới từ trang login luôn tạo ATTENDEE. Organizer có thể tạo STAFF trong tab Staff.
 
 ## Hướng dẫn sử dụng
 
@@ -137,7 +137,7 @@ Kịch bản bảo vệ 5–7 phút: [demo end-to-end](Frontend/docs/demo-scenar
 
 ## Thử bằng Swagger
 
-1. Chọn **Authorize** trong Swagger; username là email hoặc alias demo, password là `123456`; giữ client_id/client_secret trống.
+1. Chọn **Authorize** trong Swagger; username là email hoặc username đánh số, password là `123456`; giữ client_id/client_secret trống.
 2. Swagger gọi OAuth2 password flow `POST /auth/token` và tự gắn Bearer JWT. Web frontend tiếp tục dùng `POST /auth/login` JSON. Đổi vai trò bằng Logout trong Authorize rồi đăng nhập lại.
 3. Tạo event và lấy ID từ response; Publish bằng `POST /events/{id}/transition`.
 4. Đổi token attendee để gọi register; đổi token organizer/staff để check-in.
@@ -163,7 +163,7 @@ SQLite kiểm tra luồng API; PostgreSQL kiểm chứng khóa dòng và chống
 ## Tài liệu và giới hạn
 
 - [Backend](Backend/README.md): cấu trúc code, minh chứng FastAPI, API và quy tắc phát triển.
-- [Frontend](Frontend/README.md): màn hình và cách sử dụng client demo.
+- [Frontend](Frontend/README.md): màn hình và cách sử dụng web client.
 - [Danh mục tài liệu](docs/README.md): báo cáo, ERD và tài liệu kỹ thuật.
 - [Giới hạn kỹ thuật](docs/gioi-han-ky-thuat.md): một worker, thông báo không có retry/queue, thời gian địa phương và phạm vi triển khai.
 
@@ -175,7 +175,7 @@ Source hoàn thành trong phạm vi web MVP một worker. Báo cáo Word do nhó
 | --- | --- |
 | Không kết nối DB | Docker Desktop, `docker compose ps`, `docker compose port db 5432`, DATABASE_URL đúng cổng |
 | Thiếu bảng | Chạy alembic upgrade head trên đúng database |
-| Login demo không được | DB đã seed chưa; seed bỏ qua nếu đã có user |
+| Login không được | DB đã seed chưa; khởi động lại backend sau khi cập nhật source; seed bổ sung tài khoản đánh số |
 | Failed to fetch / CORS | Backend đang chạy, VITE_API_BASE_URL và FRONTEND_ORIGIN đúng, cùng hostname |
 | Không đăng ký được | Event PUBLISHED, còn chỗ, chưa qua giờ, attendee chưa đăng ký lần nào |
 | Không check-in được | Event STARTED, vé VALID, đúng event đang chọn, organizer sở hữu hoặc staff được gán |
