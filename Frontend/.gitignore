@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -10,7 +11,19 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+.eslintcache
+test-results/
+playwright-report/
 *.local
+
+# Local environment; keep the setup template in source control
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
