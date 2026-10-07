@@ -213,7 +213,7 @@ Hồ sơ nhóm cần hoàn tất bằng dữ liệu thật:
 - `Bien_ban_bao_cao.docx` là tài liệu nguồn môn học, không phải báo cáo Evently và không vô nghĩa; có thể đặt vào thư mục tài liệu tham chiếu hoặc giữ riêng ngoài gói sản phẩm.
 - `Bao_cao_Evently_DRAFT.docx` cần sửa/đổi thành bản cuối, không xóa để che khoảng trống hồ sơ.
 - `final-review.md` là chứng cứ kiểm chứng triển khai; file này là đối chiếu yêu cầu học thuật, hai phạm vi khác nhau. Không dùng cả hai như hai báo cáo nộp chính.
-- `tools/sync_review_worktrees.py` và `docs/uiux-v2-branches.json` phục vụ quản lý các bản review local; không bắt buộc cho runtime và không phải kỹ thuật FastAPI để tính điểm.
+- Script đồng bộ worktree và manifest chia nhánh từng phục vụ quản lý các bản review local; đã xóa sau khi hoàn tất commit vì không phục vụ chạy hay triển khai đồ án.
 - Tests, migrations, benchmark script, ERD và giấy phép font có giá trị; không xóa để làm repo nhìn ít file hơn.
 - `.venv`, `node_modules`, `dist`, caches, `.coverage` sinh lại và `.env` thật có thể tồn tại local để chạy, nhưng không đưa vào archive nộp. Giữ lockfile/env example/source/tests/docs; dùng allowlist hoặc bản checkout sạch từ frozen commit để đóng gói.
 - Screenshot gắn vào Word cần kiểm tra lại với web MVP hiện tại; cập nhật ảnh ngoài `docs/assets` không tự cập nhật ảnh đã nhúng trong DOCX.
