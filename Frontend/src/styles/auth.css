@@ -10,10 +10,10 @@
 .auth-form .password-wrap { width: 100%; }
 .auth-form > .hint { margin: 24px 0; line-height: 1.7; }
 .auth-form > .hint a { color: var(--pass-violet); text-decoration: underline; text-underline-offset: 3px; }
-.auth-demo { padding-top: 24px; border-top: 1px solid var(--border); margin: 24px 0 0; font-size: 13px; line-height: 1.6; }
-.auth-demo > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; margin-bottom: 8px; }
-.auth-demo dt { font-weight: 600; }
-.auth-demo dd { margin: 0; color: var(--text-muted); }
+.auth-accounts { padding-top: 24px; border-top: 1px solid var(--border); margin: 24px 0 0; font-size: 13px; line-height: 1.6; }
+.auth-accounts > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; margin-bottom: 8px; }
+.auth-accounts dt { font-weight: 600; }
+.auth-accounts dd { margin: 0; color: var(--text-muted); }
 .auth-mobile-brand { display: none; }
 @media (max-width: 1200px) { .auth-copy h1 { font-size: 44px; } }
 @media (max-width: 900px) {

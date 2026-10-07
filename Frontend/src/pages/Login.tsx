@@ -70,11 +70,11 @@ export function Login() {
         <Button type="submit" loading={busy} disabled={!ready}>{signup ? strings.auth.signUp : strings.auth.signIn}</Button>
         <p className="hint">{signup ? strings.auth.signupNote : strings.auth.newHere}{' '}
           <Link to={signup ? '/login' : '/login?mode=signup'} state={location.state} onClick={() => {setError('');setTouched({});setServerErrors({});}}>{signup ? strings.auth.backToSignIn : strings.auth.createAccount}</Link></p>
-        {!signup && <dl className="auth-demo">
-          <div><dt>{strings.auth.demoRoles.attendee}:</dt><dd>{strings.auth.demoAccounts.attendee}</dd></div>
-          <div><dt>{strings.auth.demoRoles.staff}:</dt><dd>{strings.auth.demoAccounts.staff}</dd></div>
-          <div><dt>{strings.auth.demoRoles.organizer}:</dt><dd>{strings.auth.demoAccounts.organizer}</dd></div>
-          <div><dt>{strings.auth.password}:</dt><dd>{strings.auth.demoAccounts.password}</dd></div>
+        {!signup && <dl className="auth-accounts">
+          <div><dt>{strings.auth.accountRoles.attendee}:</dt><dd>{strings.auth.sampleAccounts.attendee}</dd></div>
+          <div><dt>{strings.auth.accountRoles.staff}:</dt><dd>{strings.auth.sampleAccounts.staff}</dd></div>
+          <div><dt>{strings.auth.accountRoles.organizer}:</dt><dd>{strings.auth.sampleAccounts.organizer}</dd></div>
+          <div><dt>{strings.auth.password}:</dt><dd>{strings.auth.sampleAccounts.password}</dd></div>
         </dl>}
       </form>
     </main>
