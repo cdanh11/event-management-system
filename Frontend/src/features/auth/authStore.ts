@@ -3,6 +3,7 @@ import type { User } from '../../types'
 
 export type Auth = {
   user: User | null
+  ready: boolean
   login: (email: string, password: string) => Promise<User>
   register: (name: string, email: string, password: string) => Promise<User>
   logout: () => void
