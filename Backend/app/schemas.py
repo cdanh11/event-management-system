@@ -11,22 +11,27 @@ from __future__ import annotations  # cho phép kiểu tham chiếu tới model 
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
+import re
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+from .models import as_local_naive
 
 
 class EventStatus(str, Enum):
     """Các trạng thái được công khai trong contract OpenAPI."""
 
     DRAFT = "DRAFT"
-    PUBLISHED = "PUBLISHED"
-    ONGOING = "ONGOING"
-    COMPLETED = "COMPLETED"
+    PUBLISHED = "PUBLISHED"  # public: mở đăng ký
+    ONGOING = "ONGOING"  # đóng đăng ký, organizer chuẩn bị; staff chưa check-in
+    STARTED = "STARTED"  # mở check-in (tự động trước giờ bắt đầu 15 phút)
+    COMPLETED = "COMPLETED"  # tự động khi hết giờ
     CANCELLED = "CANCELLED"
 
 
 class NotifyMode(str, Enum):
+    SMTP = "smtp"
     WEBHOOK = "webhook"
     SIMULATED = "simulated"
 
@@ -65,10 +70,21 @@ class UserOut(BaseModel):
     avatar: str
 
 
+def login_email(identifier: str) -> str:
+    """Alias demo đánh số trỏ tới email duy nhất; không xác thực theo tên hiển thị."""
+    identifier = identifier.strip().lower()
+    return f"{identifier}@demo.com" if re.fullmatch(r"(?:user|staff|organizer)[1-9][0-9]*", identifier) else identifier
+
+
 class LoginIn(BaseModel):
     """Body của POST /auth/login."""
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def accept_demo_alias(cls, value):
+        return login_email(value) if isinstance(value, str) else value
 
 
 class RegisterIn(BaseModel):
@@ -80,6 +96,11 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def trim_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class TokenOut(BaseModel):
@@ -94,12 +115,23 @@ class EventIn(BaseModel):
     """Dữ liệu tạo sự kiện. Field ràng buộc để Pydantic validate từ đầu."""
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1)
-    location: str
+    location: str = Field(min_length=1, max_length=300)
     start_time: datetime
     end_time: datetime
     capacity: int = Field(gt=0)
-    category: str
-    banner_image: str
+    category: str = Field(min_length=1, max_length=80)
+    banner_image: str = Field(default="", max_length=500)
+
+    @field_validator("title", "description", "location", "category", mode="before")
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def normalize_event_time(cls, value: datetime) -> datetime:
+        # Cột DB là DateTime không timezone: chuẩn hóa trước cả validation và lưu.
+        return as_local_naive(value)
 
     @model_validator(mode="after")
     def _check_time_order(self):
@@ -117,16 +149,29 @@ class EventUpdateIn(BaseModel):
     """
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, min_length=1)
-    location: str | None = None
+    location: str | None = Field(default=None, min_length=1, max_length=300)
     start_time: datetime | None = None
     end_time: datetime | None = None
     capacity: int | None = Field(default=None, gt=0)
-    category: str | None = None
-    banner_image: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=80)
+    banner_image: str | None = Field(default=None, max_length=500)
+
+    @field_validator("title", "description", "location", "category", mode="before")
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def normalize_event_time(cls, value: datetime | None) -> datetime | None:
+        return as_local_naive(value) if value is not None else None
 
     @model_validator(mode="after")
     def _check_time_order(self):
         """Khi gửi cả 2 mốc thời gian mà end <= start -> 422 ngay tại tầng bind body."""
+        # PATCH cho phép bỏ qua field; không cho null vì cột DB là NOT NULL.
+        if any(getattr(self, key) is None for key in self.model_fields_set):
+            raise ValueError("Updated fields cannot be null")
         if (
             self.start_time is not None
             and self.end_time is not None
@@ -143,6 +188,40 @@ class EventOut(EventIn):
     registered_count: int
     status: EventStatus
     created_at: datetime
+
+
+class EventPageOut(BaseModel):
+    """Trang sự kiện organizer; total là số kết quả sau bộ lọc, không phải số hàng trang."""
+    items: list[EventOut]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
+class OrganizerDashboardOut(BaseModel):
+    events: list[EventOut]
+    total_registrations: int = Field(ge=0)
+    total_checkins: int = Field(ge=0)
+
+
+class OccupancyOut(BaseModel):
+    type: Literal["occupancy"] = "occupancy"
+    event_id: str
+    capacity: int = Field(gt=0)
+    registered_count: int = Field(ge=0)
+    remaining: int = Field(ge=0)
+    status: EventStatus
+
+
+class WsTicketOut(BaseModel):
+    ticket: str
+    expires_in: int = Field(gt=0)
+
+
+class HealthOut(BaseModel):
+    """Liveness của tiến trình; không khẳng định database đang sẵn sàng."""
+    status: Literal["ok"]
 
 
 class NotifyOut(BaseModel):
@@ -189,6 +268,7 @@ class CheckinIn(BaseModel):
     """Body của POST /checkins: mã vé để xác thực."""
 
     ticket_code: str
+    event_id: str | None = None  # Client Door gửi event đang chọn; Swagger cũ vẫn tương thích.
 
 
 class CheckinOut(BaseModel):
@@ -202,10 +282,35 @@ class CheckinOut(BaseModel):
     status: str
 
 
+class CheckinHistoryOut(BaseModel):
+    """Một dòng lịch sử check-in cho staff/organizer (thông tin public)."""
+    id: str
+    ticket_code: str
+    attendee_name: str
+    checked_in_at: datetime
+
+
+class StaffCreateIn(BaseModel):
+    """Body của POST /users/staff — organizer tạo tài khoản STAFF."""
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def trim_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 # ----------------------------- Assignments -------------------------------
 class AssignmentIn(BaseModel):
     """Body của POST /events/{id}/staff: staff_id người được gán."""
 
+    staff_id: str
+
+
+class AssignmentOut(BaseModel):
+    event_id: str
     staff_id: str
 
 

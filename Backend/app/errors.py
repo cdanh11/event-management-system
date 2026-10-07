@@ -5,12 +5,12 @@ Mọi lỗi nghiệp vụ của hệ thống đều dùng ``api_error`` để tr
 Exception handler ở app/main.py sẽ chuẩn hóa lần cuối trước khi gửi tới client.
 """
 from fastapi import HTTPException
+from typing import NoReturn
 
 
-def api_error(status: int, code: str, message: str) -> None:
+def api_error(status: int, code: str, message: str) -> NoReturn:
     """Ném HTTPException với body {code, message}.
 
-    Hàm luôn raise nên không bao giờ trả về; type return ``None`` chỉ để
-    nói rõ "không trả giá trị".
+    NoReturn giúp người đọc/type checker biết nhánh này luôn kết thúc bằng lỗi.
     """
     raise HTTPException(status, detail={"code": code, "message": message})
