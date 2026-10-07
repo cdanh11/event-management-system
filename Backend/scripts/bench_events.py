@@ -1,102 +1,84 @@
-"""Phase 2 (Tầng 3): benchmark GET /events trên PostgreSQL thật.
+"""Benchmark PostgreSQL trên DB test; rollback dữ liệu và index tạm khi xong.
 
-- Seed N event PUBLISHED (category='__BENCH__'), đo rồi xóa sạch.
-- So sánh: EXPLAIN ANALYZE trước/sau composite index + timing
-  offset deep-page vs cursor keyset.
-- Chạy:  docker compose up -d db
--         DATABASE_URL=... python scripts/bench_events.py --rows 3000
-
-KHÔNG chạy trên DB có dữ liệu thật quan trọng (script DROP/CREATE index).
+Chạy từ Backend: DATABASE_URL trỏ DB *_test hoặc *_audit, rồi
+python scripts/bench_events.py --rows 3000 --iters 20.
+DROP/CREATE index khóa bảng trong lúc đo; không dùng DB đang phục vụ demo.
 """
-
 import argparse
 import os
 import statistics
 import time
-import uuid
 from datetime import datetime, timedelta
+from uuid import uuid4
 
 import psycopg
-
-DSN = os.getenv("DATABASE_URL", "postgresql://evently:evently@localhost:5433/evently")
-DSN = DSN.replace("postgresql+psycopg://", "postgresql://")
-INDEX = "ix_events_status_start_time"
-
-
-def q(cur, sql, params=()):
-    cur.execute(sql, params)
-    return cur.fetchall()
+from psycopg.conninfo import conninfo_to_dict
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--rows", type=int, default=3000)
-    ap.add_argument("--limit", type=int, default=20)
-    ap.add_argument("--iters", type=int, default=20)
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rows", type=int, default=3000)
+    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--iters", type=int, default=20)
+    args = parser.parse_args()
+    if not 1 <= args.limit < args.rows or args.iters < 1:
+        parser.error("Cần rows > limit >= 1 và iters >= 1")
+    dsn = os.environ.get("DATABASE_URL", "").replace("postgresql+psycopg://", "postgresql://")
+    if not dsn or not conninfo_to_dict(dsn).get("dbname", "").endswith(("_test", "_audit")):
+        parser.error("DATABASE_URL phải trỏ PostgreSQL *_test hoặc *_audit riêng")
+    with psycopg.connect(dsn) as connection:
+        try:
+            with connection.cursor() as cursor:
+                organizer_id = str(uuid4())
+                base = datetime.now() + timedelta(days=30)
+                cursor.execute(
+                    "INSERT INTO users (id,name,email,password_hash,role,avatar_url,created_at,updated_at) "
+                    "VALUES (%s,'bench',%s,'unused','ORGANIZER','',%s,%s)",
+                    (organizer_id, f"bench-{organizer_id}@demo.com", base, base),
+                )
+                cursor.executemany(
+                    "INSERT INTO events (id,organizer_id,title,description,location,start_time,end_time,"
+                    "capacity,registered_count,status,category,banner_url,created_at) "
+                    "VALUES (%s,%s,%s,'benchmark','HCMC',%s,%s,1000,0,'PUBLISHED','__BENCH__','',%s)",
+                    [(str(uuid4()), organizer_id, f"bench-{n}", base + timedelta(seconds=n),
+                      base + timedelta(seconds=n, hours=2), base) for n in range(args.rows)],
+                )
+                cursor.execute("ANALYZE events")
+                query = "FROM events WHERE status = 'PUBLISHED'"
+                cursor.execute(f"SELECT count(*) {query}")
+                total = cursor.fetchone()[0]
+                offset = total - args.limit
+                cursor.execute(f"SELECT start_time,id {query} ORDER BY start_time,id LIMIT 1 OFFSET %s", (offset - 1,))
+                anchor = cursor.fetchone()
 
-    conn = psycopg.connect(DSN, autocommit=True)
-    cur = conn.cursor()
-    base = datetime(2027, 1, 1)
-    uid = str(uuid.uuid4())
+                def explain():
+                    cursor.execute(f"EXPLAIN ANALYZE SELECT id {query} ORDER BY start_time,id LIMIT %s", (args.limit,))
+                    return "\n".join(row[0] for row in cursor.fetchall())
 
-    now = datetime(2027, 1, 1)
-    cur.execute("INSERT INTO users (id, name, email, password_hash, role, avatar_url,"
-                " created_at, updated_at) "
-                "VALUES (%s, 'bench', %s, 'x', 'ORGANIZER', '', %s, %s)",
-                (uid, f"bench-{uid[:8]}@demo.com", now, now))
-    cur.executemany(
-        "INSERT INTO events (id, organizer_id, title, description, location,"
-        " start_time, end_time, capacity, registered_count, status, category, banner_url,"
-        " created_at)"
-        " VALUES (%s, %s, %s, 'b', 'HCMC', %s, %s, 1000, 0, 'PUBLISHED', '__BENCH__', '', %s)",
-        [(str(uuid.uuid4()), uid, f"bench-{i}", base + timedelta(seconds=i),
-          base + timedelta(seconds=i, hours=2), now) for i in range(args.rows)],
-    )
-    print(f"seeded {args.rows} bench events")
-    cur.execute("ANALYZE events")  # thống kê mới để planner chọn plan trung thực
+                cursor.execute("DROP INDEX IF EXISTS ix_events_status_start_time")
+                before = explain()
+                cursor.execute("CREATE INDEX ix_events_status_start_time ON events (status,start_time)")
+                after = explain()
 
-    # Đo đúng shape query của GET /events (lọc status + sắp xếp start_time).
-    filt = "FROM events WHERE status = 'PUBLISHED'"
-    anchor = q(cur, f"SELECT start_time, id {filt} ORDER BY start_time, id"
-                    f" LIMIT 1 OFFSET {args.rows - args.limit - 1}")[0]
-    offset_sql = (f"SELECT id {filt} ORDER BY start_time, id"
-                  f" LIMIT {args.limit} OFFSET {args.rows - args.limit}")
-    cursor_sql = (f"SELECT id {filt} AND (start_time, id) > (%s, %s)"
-                  f" ORDER BY start_time, id LIMIT {args.limit}")
+                def measure(sql, params):
+                    durations = []
+                    for _ in range(args.iters):
+                        started = time.perf_counter()
+                        cursor.execute(sql, params)
+                        cursor.fetchall()
+                        durations.append((time.perf_counter() - started) * 1000)
+                    return statistics.mean(durations)
 
-    def explain():
-        return "\n".join(r[0] for r in q(cur, f"EXPLAIN ANALYZE SELECT id {filt}"
-                                              " ORDER BY start_time, id LIMIT 20"))
-
-    cur.execute(f"DROP INDEX IF EXISTS {INDEX}")
-    plan_before = explain()
-    cur.execute(f"CREATE INDEX {INDEX} ON events (status, start_time)")
-    plan_after = explain()
-
-    def bench(sql, params=()):
-        ts = []
-        for _ in range(args.iters):
-            t = time.perf_counter()
-            q(cur, sql, params)
-            ts.append((time.perf_counter() - t) * 1000)
-        return statistics.mean(ts)
-
-    t_offset = bench(offset_sql)
-    t_cursor = bench(cursor_sql, anchor)
-
-    cur.execute("DELETE FROM events WHERE category = '__BENCH__'")
-    cur.execute("DELETE FROM users WHERE id = %s", (uid,))
-    conn.close()
-
-    print("\n--- EXPLAIN ANALYZE (no index) ---")
-    print(plan_before)
-    print("\n--- EXPLAIN ANALYZE (with ix_events_status_start_time) ---")
-    print(plan_after)
-    print(f"\nrows={args.rows} limit={args.limit} iters={args.iters}")
-    print(f"offset deep-page avg: {t_offset:.2f} ms")
-    print(f"cursor keyset    avg: {t_cursor:.2f} ms")
-    print("bench rows cleaned up (index kept, from migration 0002)")
+                offset_ms = measure(f"SELECT id {query} ORDER BY start_time,id LIMIT %s OFFSET %s", (args.limit, offset))
+                cursor_ms = measure(f"SELECT id {query} AND (start_time,id) > (%s,%s) ORDER BY start_time,id LIMIT %s", (*anchor, args.limit))
+                print(f"temporary_rows={args.rows}, published_rows={total}, limit={args.limit}, iterations={args.iters}")
+                print("Without composite index:\n" + before)
+                print("With composite index:\n" + after)
+                print(f"Offset average: {offset_ms:.3f} ms; cursor average: {cursor_ms:.3f} ms")
+        finally:
+            # Rollback INSERT và DDL, kể cả khi query hoặc đo bị lỗi.
+            connection.rollback()
+            print("Rolled back benchmark data and index changes")
 
 
 if __name__ == "__main__":
