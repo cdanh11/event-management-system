@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..access import require_registration_access
 from ..deps import current_user
 from ..errors import api_error
 from ..models import Registration, Ticket, User
@@ -19,12 +20,11 @@ def get_ticket(
     db: Session = Depends(get_db),
 ):
     """Chi tiết một vé. ATTENDEE chỉ xem được vé của chính mình."""
-    ticket = db.get(Ticket, ticket_id) #Đây là shortcut có sẵn trong SQLAlchemy => SELECT * FROM tickets WHERE id = 'ticket_id_value';
+    ticket = db.get(Ticket, ticket_id)
     if ticket is None:
         api_error(404, "TICKET_NOT_FOUND", "Ticket not found")
 
     reg = db.get(Registration, ticket.registration_id)
-    if user.role == "ATTENDEE" and reg.attendee_id != user.id:
-        api_error(403, "FORBIDDEN", "Not your ticket")
+    require_registration_access(db, user, reg)
 
     return to_ticket(ticket)

@@ -14,9 +14,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..access import require_registration_access
 from ..deps import current_user, require
 from ..errors import api_error
-from ..models import Event, Registration, Ticket, User, utcnow
+from ..models import Event, Registration, Ticket, User, as_local_naive, localnow
 from ..realtime import manager, occupancy_payload
 from ..services.notifier import send_ticket_email
 from ..schemas import (
@@ -33,13 +34,13 @@ router = APIRouter()
 
 
 def _now_naive() -> datetime:
-    """UTC hiện tại dạng naive — khớp cột DateTime (không tz) trong DB."""
-    return utcnow()
+    """Giờ hiện tại so với giờ event (wall-clock địa phương, xem models.localnow)."""
+    return localnow()
 
 
 def _as_naive(value: datetime) -> datetime:
-    """Chuẩn hóa datetime aware/naive (client gửi ISO có 'Z') để so sánh được."""
-    return value.replace(tzinfo=None) if value.tzinfo is not None else value
+    """Chuẩn hóa datetime aware/naive về giờ địa phương để so với giờ event."""
+    return as_local_naive(value)
 
 
 @router.post(
@@ -145,8 +146,7 @@ def get_registration(
     reg = db.get(Registration, registration_id)
     if reg is None:
         api_error(404, "REGISTRATION_NOT_FOUND", "Registration not found")
-    if user.role == "ATTENDEE" and reg.attendee_id != user.id:
-        api_error(403, "FORBIDDEN", "Not your registration")
+    require_registration_access(db, user, reg)
     return to_registration(reg)
 
 
@@ -165,24 +165,30 @@ def cancel_registration(
 
     Nếu đã hủy rồi thì trả về nguyên trạng thái cũ thay vì báo lỗi (idempotent).
     """
-    reg = db.scalar(
-        select(Registration).where(Registration.id == registration_id).with_for_update()
-    )
+    reg = db.get(Registration, registration_id)
     if reg is None:
         api_error(404, "REGISTRATION_NOT_FOUND", "Registration not found")
     if reg.attendee_id != user.id:
         api_error(403, "FORBIDDEN", "Not your registration")
 
+    # Mọi thay đổi ghế/vé khóa Event trước, sau đó Registration/Ticket.
+    # Thứ tự nhất quán tránh deadlock với đăng ký, check-in và chuyển trạng thái.
+    event = db.scalar(select(Event).where(Event.id == reg.event_id).with_for_update())
+    db.refresh(reg, with_for_update=True)
+
     if reg.status == "CANCELLED":
         return to_registration(reg)
-
+    if event.status != "PUBLISHED":
+        api_error(400, "CANCELLATION_CLOSED", "Cancellation is only open while the event is PUBLISHED")
+    ticket = db.scalar(
+        select(Ticket).where(Ticket.registration_id == reg.id).with_for_update()
+    )
+    if ticket is not None and ticket.status == "USED":
+        api_error(409, "TICKET_ALREADY_USED", "A checked-in ticket cannot be cancelled")
     reg.status = "CANCELLED"
-
-    ticket = db.scalar(select(Ticket).where(Ticket.registration_id == reg.id))
     if ticket is not None:
         ticket.status = "CANCELLED"
 
-    event = db.scalar(select(Event).where(Event.id == reg.event_id).with_for_update())
     event.registered_count = max(0, event.registered_count - 1)
 
     db.commit()
@@ -206,8 +212,9 @@ def ticket_for_registration(
     reg = db.get(Registration, registration_id)
     if reg is None:
         api_error(404, "REGISTRATION_NOT_FOUND", "Registration not found")
-    if user.role == "ATTENDEE" and reg.attendee_id != user.id:
-        api_error(403, "FORBIDDEN", "Not your registration")
+    require_registration_access(db, user, reg)
 
     ticket = db.scalar(select(Ticket).where(Ticket.registration_id == registration_id))
+    if ticket is None:
+        api_error(404, "TICKET_NOT_FOUND", "Ticket not found")
     return to_ticket(ticket)

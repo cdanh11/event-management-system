@@ -118,7 +118,7 @@ def test_openapi_marks_only_protected_operations_with_bearer():
     assert "security" not in spec
     assert "security" not in spec["paths"]["/auth/login"]["post"]
     assert "security" not in spec["paths"]["/events"]["get"]
-    assert spec["paths"]["/auth/me"]["get"]["security"] == [{"HTTPBearer": []}]
+    assert spec["paths"]["/auth/me"]["get"]["security"] == [{"OAuth2PasswordBearer": []}]
     assert spec["components"]["schemas"]["EventStatus"]["enum"] == [
-        "DRAFT", "PUBLISHED", "ONGOING", "COMPLETED", "CANCELLED"
+        "DRAFT", "PUBLISHED", "ONGOING", "STARTED", "COMPLETED", "CANCELLED"
     ]

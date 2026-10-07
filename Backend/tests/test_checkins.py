@@ -18,18 +18,20 @@ def _payload(**overrides):
     return data
 
 
-def _ongoing_event_with_ticket(client, org, staff, att):
-    """Tạo event PUBLISHED -> attendee đăng ký (có ticket) -> chuyển ONGOING -> gán staff.
+def _started_event_with_ticket(client, org, staff, att):
+    """Tạo event PUBLISHED -> attendee đăng ký (có ticket) -> ONGOING -> STARTED -> gán staff.
 
-    Đăng ký phải diễn ra khi event còn PUBLISHED (register chỉ mở ở trạng thái đó).
+    Đăng ký phải diễn ra khi event còn PUBLISHED (register chỉ mở ở trạng thái đó);
+    check-in chỉ mở ở STARTED.
     """
     event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
     client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org)
 
-    # Đăng ký trước khi event chuyển ONGOING.
+    # Đăng ký trước khi event đóng đăng ký.
     ticket_code = client.post(f"/events/{event_id}/register", headers=att).json()["ticket"]["ticket_code"]
 
     client.post(f"/events/{event_id}/transition", json={"status": "ONGOING"}, headers=org)
+    client.post(f"/events/{event_id}/transition", json={"status": "STARTED"}, headers=org)
 
     staff_id = client.get("/auth/me", headers=staff).json()["id"]
     client.post(f"/events/{event_id}/staff", json={"staff_id": staff_id}, headers=org)
@@ -41,7 +43,7 @@ def test_checkin_success(client, auth_headers):
     staff = auth_headers(role="STAFF", email="staff@demo.com")
     att = auth_headers(role="ATTENDEE", email="att@demo.com")
 
-    event_id, ticket_code = _ongoing_event_with_ticket(client, org, staff, att)
+    event_id, ticket_code = _started_event_with_ticket(client, org, staff, att)
 
     resp = client.post("/checkins", json={"ticket_code": ticket_code}, headers=staff)
 
@@ -56,7 +58,7 @@ def test_checkin_same_ticket_twice_409(client, auth_headers):
     staff = auth_headers(role="STAFF", email="staff@demo.com")
     att = auth_headers(role="ATTENDEE", email="att@demo.com")
 
-    _, ticket_code = _ongoing_event_with_ticket(client, org, staff, att)
+    _, ticket_code = _started_event_with_ticket(client, org, staff, att)
 
     assert client.post("/checkins", json={"ticket_code": ticket_code}, headers=staff).status_code == 201
     resp = client.post("/checkins", json={"ticket_code": ticket_code}, headers=staff)
@@ -78,7 +80,7 @@ def test_checkin_requires_assignment_403(client, auth_headers):
     other_staff = auth_headers(role="STAFF", email="staff2@demo.com")
     att = auth_headers(role="ATTENDEE", email="att@demo.com")
 
-    _, ticket_code = _ongoing_event_with_ticket(client, org, staff, att)
+    _, ticket_code = _started_event_with_ticket(client, org, staff, att)
 
     # staff2 chưa được gán vào event này -> 403
     resp = client.post("/checkins", json={"ticket_code": ticket_code}, headers=other_staff)
@@ -93,12 +95,45 @@ def test_checkin_requires_staff_role(client, auth_headers):
     assert resp.status_code == 403
 
 
+def test_checkin_closed_in_ongoing(client, auth_headers):
+    """ONGOING là giai đoạn chuẩn bị: staff chưa được check-in (chỉ STARTED)."""
+    from datetime import datetime, timedelta
+
+    org = auth_headers(role="ORGANIZER", email="org@demo.com")
+    staff = auth_headers(role="STAFF", email="staff@demo.com")
+    att = auth_headers(role="ATTENDEE", email="att@demo.com")
+
+    event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
+    client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org)
+    ticket_code = client.post(f"/events/{event_id}/register", headers=att).json()["ticket"]["ticket_code"]
+    client.post(f"/events/{event_id}/transition", json={"status": "ONGOING"}, headers=org)
+    staff_id = client.get("/auth/me", headers=staff).json()["id"]
+    client.post(f"/events/{event_id}/staff", json={"staff_id": staff_id}, headers=org)
+
+    resp = client.post("/checkins", json={"ticket_code": ticket_code}, headers=staff)
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "CHECKIN_CLOSED"
+
+
+def test_checkin_organizer_owner_success(client, auth_headers):
+    """Organizer được check-in event của chính mình (tổ chức nhỏ không có staff)."""
+    org = auth_headers(role="ORGANIZER", email="org@demo.com")
+    staff = auth_headers(role="STAFF", email="staff@demo.com")
+    att = auth_headers(role="ATTENDEE", email="att@demo.com")
+
+    _, ticket_code = _started_event_with_ticket(client, org, staff, att)
+
+    resp = client.post("/checkins", json={"ticket_code": ticket_code}, headers=org)
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "SUCCESS"
+
+
 def test_assign_staff_duplicate_409(client, auth_headers):
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     staff = auth_headers(role="STAFF", email="staff@demo.com")
     att = auth_headers(role="ATTENDEE", email="att@demo.com")
 
-    event_id, _ = _ongoing_event_with_ticket(client, org, staff, att)
+    event_id, _ = _started_event_with_ticket(client, org, staff, att)
 
     staff_id = client.get("/auth/me", headers=staff).json()["id"]
     resp = client.post(f"/events/{event_id}/staff", json={"staff_id": staff_id}, headers=org)

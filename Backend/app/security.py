@@ -3,7 +3,7 @@
 - Mật khẩu: dùng pwdlib với thuật toán Argon2 (khuyến nghị OWASP).
 - Access token: JWT HS256, ngắn hạn (mặc định 15 phút).
 - Refresh token: chuỗi ngẫu nhiên 48 byte URL-safe; chỉ lưu *hash* SHA-256
-  trong DB nên không có rủi ro nếu DB bị lộ.
+  trong DB nên không thể dùng trực tiếp hash làm token khi DB bị lộ.
 """
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -19,7 +19,7 @@ pwd = PasswordHash.recommended()
 
 
 def hash_password(value: str) -> str:
-    """Băm mật khẩu trước khi lưu vào DB. Trả chuỗi có kèm tham số (phormat PHC)."""
+    """Băm mật khẩu trước khi lưu vào DB, trả chuỗi định dạng PHC."""
     return pwd.hash(value)
 
 
@@ -43,7 +43,10 @@ def access_token(user_id: str, role: str) -> str:
 
 def decode_access(token: str) -> dict:
     """Giải mã + xác thực chữ ký JWT. Ném exception nếu token sai/hết hạn."""
-    return jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+    return jwt.decode(
+        token, settings.jwt_secret, algorithms=["HS256"],
+        options={"require": ["sub", "role", "exp"]},
+    )
 
 
 def new_refresh() -> str:

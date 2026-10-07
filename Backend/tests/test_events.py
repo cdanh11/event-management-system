@@ -119,12 +119,17 @@ def test_full_lifecycle_create_to_complete(client, auth_headers):
     assert resp.json()["title"] == "Tech Meetup v2"
     assert resp.json()["start_time"].startswith(new_start[:19])
 
-    # 4. Ongoing
+    # 4. Ongoing (đóng đăng ký, organizer chuẩn bị)
     resp = client.post(f"/events/{event_id}/transition", json={"status": "ONGOING"}, headers=org)
     assert resp.json()["status"] == "ONGOING"
 
-    # 5. Complete
+    # 5. Started (mở check-in)
+    resp = client.post(f"/events/{event_id}/transition", json={"status": "STARTED"}, headers=org)
+    assert resp.json()["status"] == "STARTED"
+
+    # 6. Complete
     resp = client.post(f"/events/{event_id}/transition", json={"status": "COMPLETED"}, headers=org)
+    assert resp.status_code == 200
     assert resp.json()["status"] == "COMPLETED"
 
 

@@ -1,48 +1,30 @@
-# Xác thực & phân quyền
+# Xác thực và phân quyền
 
-## Tổng quan
+Access token JWT HS256 dùng header Authorization: Bearer, mặc định 15 phút. Refresh token ngẫu nhiên nằm trong cookie HttpOnly/SameSite=lax, mặc định 7 ngày; DB chỉ lưu hash SHA-256. Mật khẩu dùng Argon2.
 
-Evently dùng JWT access token (header `Authorization: Bearer`) kết hợp refresh token
-xoay vòng trong cookie `HttpOnly`. Mọi quy tắc nằm ở `app/deps.py` và `app/routers/auth.py`.
+## Luồng và endpoint
 
-## Luồng
-
-```text
-Đăng ký/đăng nhập → access token (15 phút) + refresh cookie (7 ngày)
-       |
-Mỗi request → Depends(require("<ROLE>")) → Depends(current_user)
-       |── HTTPBearer đọc header (thiếu header → 401, không phải 403)
-       |── decode JWT → db.get(User, sub) → kiểm tra role → 403 nếu sai quyền
-       └── GET /auth/me: trả thông tin user hiện tại
-```
-
-| Endpoint | Quyền | Ghi chú |
-| --- | --- | --- |
-| `POST /auth/register` (201) | public | Tự mở tài khoản **ATTENDEE**; server ấn định role, client không thể tự nâng quyền |
-| `POST /auth/login` | public | Sai mật khẩu → `401 INVALID_CREDENTIALS` |
-| `POST /auth/refresh` | cookie | Xoay vòng: thu hồi token cũ, cấp cặp mới |
-| `POST /auth/logout` (204) | cookie (nếu có) | Thu hồi refresh token, xóa cookie |
-| `GET /auth/me` | Bearer | Kiểm tra token nhanh |
-
-## Vai trò
-
-| Role | Được phép |
+| Endpoint | Hành vi |
 | --- | --- |
-| `ATTENDEE` | Đăng ký/hủy vé của chính mình, xem vé của mình |
-| `STAFF` | Check-in vé thuộc sự kiện được phân công |
-| `ORGANIZER` | Tạo/sửa/xóa nháp, chuyển trạng thái, gán staff, notify, xem dashboard và occupancy |
+| POST /auth/register | Tạo ATTENDEE, role do server ấn định; trả 201 và đăng nhập |
+| POST /auth/token | OAuth2 password flow: form grant_type=password, username=email; cấp JWT/refresh cookie |
+| POST /auth/login | Kiểm tra email/password, cấp access token và refresh cookie |
+| POST /auth/refresh | Khóa dòng refresh token, thu hồi token cũ và cấp cặp mới |
+| POST /auth/logout | Thu hồi refresh token hiện tại, xóa cookie, trả 204 |
+| GET /auth/me | Xác thực JWT và trả thông tin user |
 
-Ngoài kiểm tra role, router còn kiểm tra **ownership**: organizer chỉ thao tác
-sự kiện của chính mình (`event.organizer_id != user.id` → `403 FORBIDDEN`).
+require(role) → current_user → OAuth2PasswordBearer + get_db. Thiếu/sai JWT trả 401 kèm WWW-Authenticate: Bearer; sai role trả 403. Role được đọc từ user trong DB. Lỗi DB không bị che thành lỗi token.
 
-## Bảo mật mật khẩu & token
+Role chỉ là lớp kiểm tra đầu. Organizer phải sở hữu event khi thay đổi; staff phải được gán để check-in. access.py bảo vệ đăng ký/vé: attendee sở hữu, organizer sở hữu event hoặc staff được gán. Người có role đúng nhưng thuộc event khác không được đọc dữ liệu cá nhân.
 
-- Mật khẩu băm Argon2 (`pwdlib`), không bao giờ lưu plaintext.
-- Refresh token chỉ lưu **hash SHA-256** trong bảng `refresh_tokens`; lộ DB cũng không dùng được token.
-- Cookie `HttpOnly` + `SameSite=lax` (bật `secure=True` khi chạy HTTPS production).
-- Secret trong `.env.example`/Compose chỉ dùng cho local development.
+Unique email bảo vệ cả khi đăng ký tài khoản đồng thời. Refresh rotation dùng FOR UPDATE trên PostgreSQL để cùng một token chỉ đổi thành công một lần; client sử dụng single-flight để tránh tự gửi hai lần refresh.
 
-## WebSocket
+## Cấu hình và giới hạn
 
-Kênh realtime không dùng Bearer header (trình duyệt không gắn được header cho WS).
-Thay vào đó là **ticket handshake một lần**, xem chi tiết ở [`realtime.md`](realtime.md).
+JWT_SECRET riêng ít nhất 32 byte. COOKIE_SECURE=true khi dùng HTTPS; local HTTP để false. Logout thu hồi refresh hiện tại, không vô hiệu ngay access JWT đã cấp; token đó còn hiệu lực tới exp. Chưa có quản lý tất cả phiên hoặc tác vụ dọn token hết hạn.
+
+WebSocket dùng ticket 30 giây một lần thay cho access JWT trên URL, xem [realtime](realtime.md). Ticket/occupancy không mang dữ liệu vé cá nhân.
+
+Swagger Authorize sử dụng `/auth/token`; grant_type sai trả 422. Client gửi scopes không được nâng quyền: RBAC lấy role từ DB, không triển khai quyền bằng OAuth2 scopes. Không có ADMIN độc lập; ORGANIZER quản lý các sự kiện mình sở hữu.
+
+Alias demo `user1`, `staff1`, `organizer1` ánh xạ tới email tương ứng @demo.com; JSON login vẫn dùng field email và OAuth2 dùng field username. Email thật đăng nhập như trước; signup vẫn chỉ chấp nhận email hợp lệ. Không lấy User.name làm khóa xác thực.

@@ -95,8 +95,28 @@ def test_ws_rejects_missing_ticket(client, make_user):
         pass
 
 
-def test_ws_ticket_requires_organizer(client, auth_headers):
-    """ATTENDEE không được cấp ticket WS."""
+def test_ws_ticket_any_role_but_auth_required(client, auth_headers):
+    """Mọi role đã login đều được cấp ticket (occupancy vốn public); thiếu auth -> 401."""
     att = auth_headers(role="ATTENDEE", email="att@demo.com")
-    assert client.post("/ws/ticket", headers=att).status_code == 403
+    assert client.post("/ws/ticket", headers=att).status_code == 200
     assert client.post("/ws/ticket").status_code == 401
+
+
+def test_ws_attendee_receives_status_updates(client, make_user):
+    """Attendee subscribe WS để nhận trạng thái realtime (fix lỗi status cũ)."""
+    make_user("Org", "org@demo.com", "ORGANIZER")
+    make_user("Att", "att@demo.com", "ATTENDEE")
+    org_token = _login(client, "org@demo.com")
+    att_token = _login(client, "att@demo.com")
+    org = {"Authorization": f"Bearer {org_token}"}
+    att = {"Authorization": f"Bearer {att_token}"}
+
+    event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
+    ticket = client.post("/ws/ticket", headers=att).json()["ticket"]
+    with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}") as ws:
+        assert ws.receive_json()["status"] == "DRAFT"
+        # Organizer đổi trạng thái -> attendee nhận status mới realtime, không reload.
+        client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org)
+        update = ws.receive_json()
+        assert update["event_id"] == event_id
+        assert update["status"] == "PUBLISHED"

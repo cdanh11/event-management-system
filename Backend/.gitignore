@@ -6,12 +6,30 @@
 
 # Python
 
-**pycache**/
+__pycache__/
 *.py[cod]
 .venv/
 venv/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage*
+coverage.xml
+htmlcov/
+
+# Local database files and backups
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.dump
+*.sql.gz
 
 # Node
 
@@ -33,3 +51,4 @@ Thumbs.db
 # Logs
 
 *.log
+*.log.*

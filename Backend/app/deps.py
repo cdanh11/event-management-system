@@ -6,27 +6,28 @@ tầng:
   - ``require(*roles)``: kiểm tra "bạn có được phép không" theo role (403).
 """
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from jwt import InvalidTokenError
 
 from .db import get_db
 from .models import User
 from .security import decode_access
 
-# auto_error=False để HTTPBearer KHÔNG tự trả 403 khi thiếu header; chúng ta
+# auto_error=False để OAuth2 dependency giao lỗi thiếu token cho handler; chúng ta
 # tự xử lý để trả đúng mã 401 (chưa xác thực) — rõ ràng về ngữ nghĩa hơn.
-bearer = HTTPBearer(auto_error=False)
+bearer = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
 
 
 def current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    credentials: str | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User:
     """Dependency: xác thực access token và nạp user hiện tại.
 
     Dependency graph (được ghi rõ cho báo cáo):
         current_user
-         ├── HTTPBearer (đọc header ``Authorization: Bearer <token>``)
+         ├── OAuth2PasswordBearer (đọc header ``Authorization: Bearer <token>``)
          └── get_db (mở Session từ SessionLocal, đóng sau request)
          Sau đó: decode_access(token) -> db.get(User, sub)
     """
@@ -34,7 +35,7 @@ def current_user(
 
 
 def get_authenticated_user(
-    credentials: HTTPAuthorizationCredentials | None, db: Session
+    credentials: str | HTTPAuthorizationCredentials | None, db: Session
 ) -> User:
     """Xác thực token với một Session đã được dependency cung cấp.
 
@@ -43,19 +44,22 @@ def get_authenticated_user(
     """
     if credentials is None:
         raise HTTPException(
-            401, detail={"code": "UNAUTHORIZED", "message": "Authentication required"}
+            401, detail={"code": "UNAUTHORIZED", "message": "Authentication required"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
-        claims = decode_access(credentials.credentials)
-        user = db.get(User, claims["sub"]) #sub = uID được định nghĩa trong claim
-    except Exception:
-        user = None
-
+        token = credentials if isinstance(credentials, str) else credentials.credentials
+        claims = decode_access(token)
+    except InvalidTokenError:
+        claims = {}
+    # Không biến lỗi kết nối DB thành 401: lỗi hạ tầng phải được nhận diện riêng.
+    user = db.get(User, claims["sub"]) if claims.get("sub") else None
     if user is None:
         raise HTTPException(
             401,
             detail={"code": "UNAUTHORIZED", "message": "Invalid or expired token"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
@@ -65,7 +69,7 @@ def require(*roles: str):
 
     Cách dùng: ``user: User = Depends(require("ORGANIZER"))``.
     Dependency này *nạp từ trong* current_user, tạo thành chuỗi dependency:
-        require(...) -> current_user -> {HTTPBearer, get_db}
+        require(...) -> current_user -> {OAuth2PasswordBearer, get_db}
     """
     def check(user: User = Depends(current_user)) -> User:
         if user.role not in roles:

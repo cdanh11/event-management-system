@@ -30,12 +30,23 @@ class Settings:
 
     # --- CORS (Frontend) --------------------------------------------------
     frontend_origin: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    allow_localhost_origins: bool = os.getenv("ALLOW_LOCALHOST_ORIGINS", "true").lower() == "true"
+    cookie_secure: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
     # --- Thông báo (Notify) -----------------------------------------------
     # Nếu để trống, bộ gửi thông báo sẽ *mô phỏng* độ trễ mạng bằng
     # asyncio.sleep để minh hoạ async I/O. Nếu đặt URL webhook, backend sẽ
     # thật sự await một request HTTP (httpx.AsyncClient) tới dịch vụ đó.
     notify_webhook_url: str = os.getenv("NOTIFY_WEBHOOK_URL", "")
+    # SMTP thật hoặc SMTP inbox local (vd Mailpit). Không có host thì giữ
+    # webhook/simulated; credentials chỉ đọc từ env, không lưu vào source.
+    smtp_host: str = os.getenv("SMTP_HOST", "")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_username: str = os.getenv("SMTP_USERNAME", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_from: str = os.getenv("SMTP_FROM", "evently@localhost")
+    smtp_starttls: bool = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
+    smtp_ssl: bool = os.getenv("SMTP_SSL", "false").lower() == "true"
 
 
 # Singleton: mọi module import ``settings`` từ đây đều dùng chung 1 cấu hình.
