@@ -78,7 +78,6 @@ export const strings = {
     passwordLong: 'Use 128 characters or fewer.',
     emailInvalid: 'Enter a valid email address.',
     loginIdentifier: 'Email or demo username',
-    loginHint: 'Demo: user100, staff1 or organizer1 · password 123456',
     loginInvalid: 'Enter an email or a demo username such as staff1.',
     passwordShort: 'Use at least 6 characters.',
     passwordRequired: 'Enter your password.',
@@ -86,6 +85,7 @@ export const strings = {
     passwordHint: 'At least 6 characters.',
     created: 'Account created.',
     demoRoles: { attendee: 'Attendee', staff: 'Staff', organizer: 'Organizer' },
+    demoAccounts: { attendee: 'user1–user100 (1–100)', staff: 'staff1–staff5 (1–5)', organizer: 'organizer1–organizer2 (1–2)', password: '123456' },
     name: 'Name',
     email: 'Email',
     password: 'Password',
@@ -100,7 +100,6 @@ export const strings = {
     signedOut: 'Signed out.',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
-    quickDemo: 'Try a demo account',
   },
   common: {
     loading: 'Loading…',
