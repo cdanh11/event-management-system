@@ -1,10 +1,11 @@
 export type Role = 'ATTENDEE' | 'STAFF' | 'ORGANIZER';
 
-export type EventStatus = 
-  | 'DRAFT' 
-  | 'PUBLISHED' 
-  | 'ONGOING' 
-  | 'COMPLETED' 
+export type EventStatus =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'ONGOING'
+  | 'STARTED'
+  | 'COMPLETED'
   | 'CANCELLED';
 
 export type RegistrationStatus = 'REGISTERED' | 'CANCELLED';
@@ -65,6 +66,7 @@ export interface CheckIn {
 export interface ApiError extends Error {
   status: number;
   code: string;
+  details?: { loc: (string | number)[]; msg: string; type?: string }[];
 }
 
 export interface StaffAssignment {
@@ -74,4 +76,11 @@ export interface StaffAssignment {
   staffName: string;
   staffEmail: string;
   createdAt: string;
+}
+
+export interface CheckinRecord {
+  id: string;
+  ticketCode: string;
+  attendeeName: string;
+  checkedInAt: string;
 }
