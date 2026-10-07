@@ -1,0 +1,142 @@
+.event-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 64px; align-items: start; }
+.event-detail-copy h1 { font: 700 36px/1.15 var(--font-display); margin: 0 0 16px; overflow-wrap: anywhere; }
+.event-detail-copy h2 { font: 700 30px/1.2 var(--font-display); margin: 36px 0 16px; }
+.event-category { color: var(--text-muted); margin-bottom: 8px; }
+.event-mobile-facts { display: none; }
+.event-description { line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.event-reservation { position: sticky; top: 88px; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.reservation-facts p { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 20px; overflow-wrap: anywhere; line-height: 1.7; }
+.reservation-facts svg { flex: 0 0 18px; margin-top: 4px; }
+.reservation-facts .door-status { display: block; font-size: 13px; color: var(--text-muted); }
+.reservation-action { display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin-top: 24px; }
+.reservation-action p { margin: 0; font-size: 15px; line-height: 1.6; }
+.agenda-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 32px 0 16px;
+}
+.agenda-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 240px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  background: var(--surface);
+}
+.agenda-search:focus-within { outline: 2px solid var(--pass-violet); outline-offset: 2px; }
+.agenda-search input { border: 0; box-shadow: none; width: 100%; min-width: 0; padding: 12px 0; background: transparent; }
+.agenda-search input:focus { outline: none; box-shadow: none; }
+.agenda-toolbar .tabs { margin: 0; }
+.agenda-toolbar select { width: auto; }
+.agenda-sort { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+.agenda-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 170px 150px;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 16px 24px 20px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--pass-violet);
+}
+.agenda-date { display: flex; flex-direction: column; align-items: center; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.agenda-date b { font: 700 44px/1 var(--font-display); }
+.agenda-date span { font-size: 15px; }
+.agenda-date small { color: var(--text-muted); font-size: 13px; }
+.agenda-description h2, .ticket-stub h2, .poster-band h2 { font: 700 22px/1.25 var(--font-display); margin: 0 0 8px; overflow-wrap: anywhere; }
+.agenda-description h2 a { color: var(--ink); }
+.agenda-event-link::after { content: ''; position: absolute; inset: 0; z-index: 1; }
+.agenda-event-link:focus-visible::after { outline: 2px solid var(--pass-violet); outline-offset: 2px; }
+.agenda-row:hover { background: var(--surface-alt); }
+.agenda-description p, .ticket-stub p { margin: 0 0 4px; color: var(--text-muted); overflow-wrap: anywhere; }
+.agenda-description > small { display: block; color: var(--text-muted); }
+.agenda-action { position: relative; z-index: 2; justify-self: end; text-align: right; width: 150px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.agenda-action .btn { white-space: nowrap; text-align: center; }
+.agenda-action { pointer-events: none; }
+.agenda-action a, .agenda-action button { pointer-events: auto; }
+.registered-link { display: inline-flex; color: var(--go-green); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.registered-link:hover { text-decoration: underline; }
+.agenda-action small { color: var(--text-muted); white-space: nowrap; }
+.agenda-occupancy { font-size: 13px; font-variant-numeric: tabular-nums; }
+.agenda-occupancy > div { height: 4px; background: var(--haze); margin-top: 10px; overflow: hidden; border-radius: 2px; }
+.agenda-occupancy i { display: block; height: 100%; background: var(--pass-violet); transition: width .25s ease; }
+.agenda-occupancy.is-urgent i { background: var(--door-orange); }
+.agenda-occupancy.is-low span { color: var(--door-orange-text); }
+.agenda-occupancy.is-full i { background: var(--ink); }
+.agenda-occupancy.is-terminal i { background: var(--status-completed-fg); }
+.agenda-more { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px; }
+.status-dot { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; margin-top: 8px; color: var(--status-color, var(--text-muted)); }
+.status-dot i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.checked-in { color: var(--go-green); }
+.poster-band {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 32px;
+  border-radius: var(--radius-md);
+}
+.poster-band a { color: inherit; }
+.poster-band p { margin: 0; opacity: .85; overflow-wrap: anywhere; }
+.poster-band .agenda-date small, .poster-band .countdown-inline { color: var(--haze); }
+.poster-band h2 { color: var(--paper); font-size: 30px; margin: 8px 0; }
+.poster-band .status-dot-started { color: #85DCB1; }
+.poster-action { display: flex; flex-direction: column; gap: 14px; align-items: flex-end; }
+.poster-action .btn { background: var(--paper); color: var(--ink); }
+.ticket-stub {
+  position: relative;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--pass-violet);
+  border-radius: var(--radius-sm);
+}
+.ticket-stub.is-cancelled { border-left-color: var(--text-muted); background: var(--surface-alt); }
+.ticket-stub .reg-actions { position: relative; z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 180px; text-align: right; }
+.ticket-stub .reg-actions button { pointer-events: auto; }
+.ticket-stub .countdown-inline { display: inline-flex; margin-top: 6px; }
+.ticket-stub .reg-actions small { white-space: nowrap; }
+.ticket-stub-description > small { display: block; color: var(--text-muted); margin: 8px 0; }
+@media (max-width: 900px) {
+  .event-detail-layout { gap: 32px; grid-template-columns: minmax(0, 1fr) 280px; }
+  .event-detail-copy h1 { font-size: 36px; }
+  .agenda-toolbar .tabs { flex: 1 1 100%; order: 3; }
+  .agenda-row { grid-template-columns: 60px minmax(0, 1fr) 135px; gap: 16px; }
+  .agenda-action { grid-column: 3; }
+  .agenda-occupancy { align-self: start; }
+}
+@media (max-width: 900px) {
+  .event-detail-page { padding-bottom: 180px; }
+  .event-detail-layout { display: block; }
+  .event-mobile-facts { display: block; margin-top: 24px; line-height: 1.7; }
+  .event-detail-copy h1 { font-size: 30px; }
+  .event-reservation { position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 40; border-radius: 0; padding: 16px 20px max(16px, env(safe-area-inset-bottom)); box-shadow: var(--shadow-lg); }
+  .reservation-facts { display: none; }
+  .reservation-action { margin-top: 12px; gap: 8px; }
+  .event-reservation .agenda-occupancy > div { margin-top: 6px; }
+  .agenda-toolbar { gap: 12px; }
+  .agenda-search { flex-basis: 100%; }
+  .agenda-toolbar .tabs { gap: 12px; overflow-x: auto; }
+  .agenda-toolbar .tabs button { padding-left: 0; padding-right: 0; font-size: 13px; white-space: nowrap; }
+  .agenda-toolbar select { margin-left: auto; }
+  .agenda-row { grid-template-columns: 48px minmax(0, 1fr); padding: 20px 8px 20px 12px; gap: 12px 16px; }
+  .agenda-description h2, .ticket-stub h2 { font-size: 22px; }
+  .agenda-date b { font-size: 30px; }
+  .agenda-occupancy { grid-column: 2; max-width: 230px; }
+  .agenda-action { grid-column: 2; justify-self: start; text-align: left; }
+  .poster-band { grid-template-columns: 48px minmax(0, 1fr); padding: 24px 16px; gap: 16px; }
+  .poster-band h2 { font-size: 22px; }
+  .poster-action { grid-column: 2; align-items: flex-start; }
+  .ticket-stub { grid-template-columns: 48px minmax(0, 1fr); padding: 20px 12px; gap: 16px; }
+  .ticket-stub .reg-actions { grid-column: 2; align-items: flex-start; text-align: left; }
+}

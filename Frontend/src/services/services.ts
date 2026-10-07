@@ -1,5 +1,6 @@
 import { request } from '../api/apiClient';
-import type { CheckIn, Event, EventStatus, Registration, StaffAssignment, Ticket, User } from '../types';
+import { parseEventDate, toEventPayloadDate } from '../lib/datetime';
+import type { CheckIn, CheckinRecord, Event, EventStatus, Registration, StaffAssignment, Ticket, User } from '../types';
 
 type ApiEvent = {
   id: string;
@@ -23,8 +24,8 @@ const event = (e: ApiEvent): Event => ({
   title: e.title,
   description: e.description,
   location: e.location,
-  startTime: e.start_time,
-  endTime: e.end_time,
+  startTime: parseEventDate(e.start_time).toISOString(),
+  endTime: parseEventDate(e.end_time).toISOString(),
   capacity: e.capacity,
   registeredCount: e.registered_count,
   status: e.status,
@@ -40,8 +41,8 @@ const eventPayload = (value: EventInput | EventUpdate) => ({
   ...(value.title !== undefined && { title: value.title }),
   ...(value.description !== undefined && { description: value.description }),
   ...(value.location !== undefined && { location: value.location }),
-  ...(value.startTime !== undefined && { start_time: value.startTime }),
-  ...(value.endTime !== undefined && { end_time: value.endTime }),
+  ...(value.startTime !== undefined && { start_time: toEventPayloadDate(value.startTime) }),
+  ...(value.endTime !== undefined && { end_time: toEventPayloadDate(value.endTime) }),
   ...(value.capacity !== undefined && { capacity: value.capacity }),
   ...(value.category !== undefined && { category: value.category }),
   ...(value.bannerImage !== undefined && { banner_image: value.bannerImage }),
@@ -120,11 +121,30 @@ const staffAssignment = (a: ApiStaffAssignment): StaffAssignment => ({
 });
 
 export const eventService = {
-  getEvents: async (limit = 20, offset = 0) =>
-    (await request<ApiEvent[]>(`/events?limit=${limit}&offset=${offset}`)).map(event),
+  list: async ({ q, status, limit = 100, cursor }: { q?: string; status?: EventStatus; limit?: number; cursor?: string } = {}, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (q?.trim()) params.set('q', q.trim());
+    if (status) params.set('status', status);
+    if (cursor) params.set('cursor', cursor);
+    const items = (await request<ApiEvent[]>(`/events?${params}`, { signal })).map(event);
+    return { items, nextCursor: items.length === limit ? items.at(-1)?.id : undefined };
+  },
+  getEvents: async (limit = 20, offset = 0, opts: { status?: string; q?: string } = {}) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (opts.status && opts.status !== 'ALL') params.set('status', opts.status);
+    if (opts.q?.trim()) params.set('q', opts.q.trim());
+    return (await request<ApiEvent[]>(`/events?${params.toString()}`)).map(event);
+  },
 
-  getEvent: async (id: string) => 
-    event(await request<ApiEvent>(`/events/${id}`)),
+  getEvent: async (id: string, signal?: AbortSignal) =>
+    event(await request<ApiEvent>(`/events/${id}`, { signal })),
+
+  occupancy: (id: string, signal?: AbortSignal) => request<{
+    event_id: string; capacity: number; registered_count: number; remaining: number; status: EventStatus;
+  }>(`/events/${id}/occupancy`, { signal }),
 
   create: async (
     input: EventInput,
@@ -163,11 +183,11 @@ export const eventService = {
 };
 
 export const registrationService = {
-  mine: async (_id: string) =>
-    (await request<ApiRegistration[]>('/registrations/me')).map(registration),
+  mine: async (_id: string, signal?: AbortSignal) =>
+    (await request<ApiRegistration[]>('/registrations/me', { signal })).map(registration),
 
-  get: async (id: string) =>
-    registration(await request<ApiRegistration>(`/registrations/${id}`)),
+  get: async (id: string, signal?: AbortSignal) =>
+    registration(await request<ApiRegistration>(`/registrations/${id}`, { signal })),
 
   register: async (eventId: string, _u: User) => {
     const r = await request<{ registration: ApiRegistration; ticket: ApiTicket }>(
@@ -185,30 +205,39 @@ export const registrationService = {
 };
 
 export const ticketService = {
-  get: async (id: string) => 
-    ticket(await request<ApiTicket>(`/tickets/${id}`)),
+  get: async (id: string, signal?: AbortSignal) =>
+    ticket(await request<ApiTicket>(`/tickets/${id}`, { signal })),
 
-  forRegistration: async (id: string) => 
-    ticket(await request<ApiTicket>(`/registrations/${id}/ticket`)),
+  forRegistration: async (id: string, signal?: AbortSignal) =>
+    ticket(await request<ApiTicket>(`/registrations/${id}/ticket`, { signal })),
 };
 
 export const checkinService = {
-  checkin: async (code: string, _u: User) =>
+  checkin: async (code: string, _u: User, eventId?: string) =>
     checkin(
       await request<ApiCheckin>('/checkins', {
         method: 'POST',
-        body: JSON.stringify({ ticket_code: code }),
+        body: JSON.stringify({ ticket_code: code, event_id: eventId }),
       })
     ),
 };
 
 export const organizerService = {
-  dashboard: async () => {
+  page: async ({ status, q, sort = 'soonest', limit = 20, offset = 0, signal }: {
+    status?: string; q?: string; sort?: 'soonest' | 'popular'; limit?: number; offset?: number; signal?: AbortSignal;
+  }) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset), sort });
+    if (status && status !== 'ALL') params.set('status', status);
+    if (q?.trim()) params.set('q', q.trim());
+    const data = await request<{ items: ApiEvent[]; total: number; limit: number; offset: number; has_more: boolean }>(`/organizer/events?${params}`, { signal });
+    return { ...data, items: data.items.map(event) };
+  },
+  dashboard: async (signal?: AbortSignal) => {
     const data = await request<{
       events: ApiEvent[];
       total_registrations: number;
       total_checkins: number;
-    }>('/organizer/dashboard');
+    }>('/organizer/dashboard', { signal });
 
     return {
       ...data,
@@ -218,14 +247,42 @@ export const organizerService = {
 };
 
 export const staffService = {
-  listStaff: () => request<User[]>('/users?role=STAFF'),
+  listStaff: (signal?: AbortSignal) => request<User[]>('/users?role=STAFF', { signal }),
 
-  assignedTo: async (eventId: string) =>
-    (await request<ApiStaffAssignment[]>(`/events/${eventId}/staff`)).map(staffAssignment),
+  assignedTo: async (eventId: string, signal?: AbortSignal) =>
+    (await request<ApiStaffAssignment[]>(`/events/${eventId}/staff`, { signal })).map(staffAssignment),
 
   assign: (eventId: string, staffId: string) =>
     request<{ event_id: string; staff_id: string }>(`/events/${eventId}/staff`, {
       method: 'POST',
       body: JSON.stringify({ staff_id: staffId }),
     }),
+
+  create: (input: { name: string; email: string; password: string }) =>
+    request<User>('/users/staff', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  myEvents: async (signal?: AbortSignal) =>
+    (await request<ApiEvent[]>('/staff/events', { signal })).map(event),
+};
+
+type ApiCheckinRecord = {
+  id: string;
+  ticket_code: string;
+  attendee_name: string;
+  checked_in_at: string;
+};
+
+export const checkinHistoryService = {
+  list: async (eventId: string, limit = 20, signal?: AbortSignal) =>
+    (await request<ApiCheckinRecord[]>(`/events/${eventId}/checkins?limit=${limit}`, { signal })).map(
+      (r): CheckinRecord => ({
+        id: r.id,
+        ticketCode: r.ticket_code,
+        attendeeName: r.attendee_name,
+        checkedInAt: r.checked_in_at,
+      })
+    ),
 };
