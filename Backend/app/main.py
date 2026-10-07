@@ -1,28 +1,29 @@
-"""Points vào chạy: ``uvicorn app.main:app --reload --port 8000``.
+"""Điểm khởi chạy: ``uvicorn app.main:app --reload --port 8000``.
 
 Nơi khai báo:
 - lifespan (startup/shutdown): quản lý resource theo vòng đời ứng dụng.
 - exception handler tập trung: chuẩn hóa body lỗi + validation 422.
 - middleware: CORS (cho trình duyệt) + TimingLoggingMiddleware (log/thời gian).
-- OpenAPI: gắn security scheme JWT để Swagger hiện nút "Authorize".
+- OpenAPI: FastAPI tự sinh schema từ router, Pydantic và OAuth2PasswordBearer dependency.
 - async: chúng ta CHỈ dùng ``async def`` ở chỗ có I/O awaitable thật
   (xem services.notifier + POST /events/{id}/notify); handler dùng DB sync
   vẫn để ``def`` để FastAPI xử lý trong threadpool.
 """
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .db import engine
 from .middleware import TimingLoggingMiddleware
 from .routers import api_router
 from .config import settings
+from .schemas import HealthOut
 from .services.notifier import close_notifier_client
 
 logging.basicConfig(level=logging.INFO)
@@ -33,14 +34,29 @@ logger = logging.getLogger("evently")
 async def lifespan(app: FastAPI):
     """Startup/shutdown của ứng dụng (quản lý resource tập trung).
 
-    - Startup: nơi hợp lý để mở kết nối model/load model phục vụ app.
-    - Shutdown: giải phóng connection pool của database (engine.dispose).
+    - Startup: quét 1 lượt lifecycle + chạy task nền sweep mỗi 60s (asyncio,
+      DB chạy trong threadpool) để tự động STARTED/COMPLETED theo giờ.
+    - Shutdown: hủy sweep task, đóng notifier client, dispose engine.
     """
+    from .services.lifecycle import lifecycle_loop, sweep_due_events
+
     logger.info("Lifespan startup: ứng dụng Evently bắt đầu khởi chạy.")
-    yield
-    logger.info("Lifespan shutdown: đóng connection pool database + notifier client.")
-    await close_notifier_client()
-    engine.dispose() #dọn dẹp db
+    try:
+        # DB test (SQLite override) hoặc DB chưa sẵn: bỏ qua, sweep loop sẽ thử lại.
+        await asyncio.to_thread(sweep_due_events)
+    except Exception:  # noqa: BLE001
+        logger.warning("startup sweep skipped (DB chưa sẵn sàng)")
+    sweeper = asyncio.create_task(lifecycle_loop())
+    try:
+        yield
+    finally:
+        logger.info("Lifespan shutdown: đóng task nền, HTTP client và connection pool.")
+        sweeper.cancel()
+        # Chờ task nhận cancellation trước khi giải phóng tài nguyên dùng chung.
+        with suppress(asyncio.CancelledError):
+            await sweeper
+        await close_notifier_client()
+        engine.dispose()
 
 
 app = FastAPI(
@@ -48,7 +64,7 @@ app = FastAPI(
     version="1.0.0",
     description=(
         "Event management API (FastAPI). Docs này được sinh tự động từ Pydantic "
-        "models; bấm Authorize và dán access token (Bearer) để gọi các endpoint có khóa."
+        "models; bấm Authorize, nhập email ở username và mật khẩu để nhận JWT qua OAuth2 password flow."
     ),
     openapi_tags=[
         {"name": "auth", "description": "Đăng nhập / refresh / logout"},
@@ -71,10 +87,11 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$" if settings.allow_localhost_origins else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Next-Cursor", "X-Process-Time-Ms"],
 )
 # Middleware tự viết: log + đo thời gian từng request.
 app.add_middleware(TimingLoggingMiddleware)
@@ -85,14 +102,18 @@ app.add_middleware(TimingLoggingMiddleware)
 async def http_error_handler(_: Request, exc: HTTPException):
     """Chuẩn hóa MỌI lỗi HTTP thành body: {status, code, message}.
 
-    Nếu code khác module (vd OURBEAT...) đã sẵn dạng {code,message} thì giữ
+    Nếu module khác đã trả dạng {code,message} thì giữ
     nguyên; nếu không thì đóng gói lại để client xử lý thống nhất.
     """
     if isinstance(exc.detail, dict):
         detail = exc.detail
     else:
         detail = {"code": "HTTP_ERROR", "message": str(exc.detail)}
-    return JSONResponse(status_code=exc.status_code, content={"status": exc.status_code, **detail})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": exc.status_code, **detail},
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -117,42 +138,11 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
     )
 
 
-# ---------------- OpenAPI: security scheme JWT -----------------------------
-def custom_openapi():
-    """Bổ sung security scheme "HTTP Bearer" vao schema OpenAPI.
-
-    FastAPI tu nhan ``HTTPBearer`` trong dependency graph va gan security cho
-    tung operation can xac thuc. Chi khai bao scheme o day, KHONG dat
-    ``schema["security"]`` toan cuc: login, refresh, health va GET /events la
-    endpoint public va phai hien dung trong Swagger.
-    """
-    if app.openapi_schema is not None:
-        return app.openapi_schema
-
-    schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
-    components = schema.setdefault("components", {})
-    security_schemes = components.setdefault("securitySchemes", {})
-    security_schemes.setdefault(
-        "HTTPBearer", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
-    )
-
-    app.openapi_schema = schema
-    return schema
-
-
-app.openapi = custom_openapi
-
-
 # ---------------- Routes ---------------------------------------------------
 app.include_router(api_router)
 
 
-@app.get("/health", tags=["system"])
+@app.get("/health", tags=["system"], response_model=HealthOut)
 def health():
     """Endpoint kiểm tra sức khỏe.
 

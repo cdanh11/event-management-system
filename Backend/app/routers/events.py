@@ -8,13 +8,12 @@ Vòng đời sự kiện trọn vẹn phục vụ yêu cầu "Create–Reschedul
 """
 from datetime import datetime
 from dataclasses import dataclass
+import httpx
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import settings
 from ..db import get_db
 from ..deps import bearer, get_authenticated_user, require
 from ..errors import api_error
@@ -30,16 +29,23 @@ from ..schemas import (
     NotifyOut,
     TransitionIn,
 )
+from ..realtime import manager, occupancy_payload
 from ..serializers import to_event
-from ..services.notifier import notify_attendees
+from ..services.notifier import NotificationError, notification_mode, notify_attendees, notify_in_background
 
 router = APIRouter()
 
 # Máy trạng thái hợp lệ: trạng thái hiện tại -> tập các trạng thái được chuyển tới.
+# PUBLISHED (public/mở đăng ký) -> ONGOING (đóng đăng ký, organizer chuẩn bị)
+#   -> STARTED (mở check-in, tự động trước giờ bắt đầu 15 phút) -> COMPLETED
+#   (tự động khi hết giờ). Hủy được ở DRAFT/PUBLISHED/ONGOING.
+# Organizer có mọi quyền ở mọi trạng thái nên được phép nhảy cóc tiến
+# (vd PUBLISHED -> STARTED để mở check-in sớm).
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "DRAFT": {"PUBLISHED", "CANCELLED"},
-    "PUBLISHED": {"ONGOING", "CANCELLED"},
-    "ONGOING": {"COMPLETED"},
+    "PUBLISHED": {"ONGOING", "STARTED", "CANCELLED"},
+    "ONGOING": {"STARTED", "CANCELLED"},
+    "STARTED": {"COMPLETED"},
     "COMPLETED": set(),
     "CANCELLED": set(),
 }
@@ -72,7 +78,7 @@ def _registered_emails(db: Session, event_id: str) -> list[str]:
 
 @dataclass(frozen=True)
 class NotificationTarget:
-    """Dữ liệu đồng bộ đã chuẩn bị trước khi endpoint gửi webhook async."""
+    """Chuẩn bị quyền/dữ liệu bằng dependency sync trước khi gửi thông báo."""
 
     event_id: str
     event_title: str
@@ -81,7 +87,7 @@ class NotificationTarget:
 
 def _notification_target(
     event_id: str,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    credentials: str | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> NotificationTarget:
     """Xác thực và đọc DB trong sync dependency, trước event loop async."""
@@ -189,6 +195,7 @@ def create_event(
 def reschedule_event(
     event_id: str,
     payload: EventUpdateIn,
+    background_tasks: BackgroundTasks,
     user: User = Depends(require("ORGANIZER")),
     db: Session = Depends(get_db),
 ):
@@ -197,13 +204,17 @@ def reschedule_event(
     Chỉ cập nhật các field được gửi lên (exclude_unset); nếu đổi thời gian
     thì bắt buộc hợp lệ: start < end và start ở tương lai.
     """
-    event = db.get(Event, event_id)
+    event = db.scalar(select(Event).where(Event.id == event_id).with_for_update())
     if event is None:
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
     if event.organizer_id != user.id:
         api_error(403, "FORBIDDEN", "You do not own this event")
+    if event.status not in {"DRAFT", "PUBLISHED"}:
+        api_error(400, "EVENT_NOT_EDITABLE", "Only DRAFT or PUBLISHED events can be edited")
 
     updates = payload.model_dump(exclude_unset=True)
+    if updates.get("capacity", event.capacity) < event.registered_count:
+        api_error(409, "CAPACITY_TOO_SMALL", "Capacity cannot be below the registered count")
     if "banner_image" in updates:
         updates["banner_url"] = updates.pop("banner_image")
 
@@ -216,6 +227,9 @@ def reschedule_event(
 
     db.commit()
     db.refresh(event)
+    # PATCH cũng đổi dữ liệu occupancy (capacity): phát snapshot sau commit,
+    # giống đăng ký/hủy/chuyển trạng thái, tránh dashboard giữ sức chứa cũ.
+    background_tasks.add_task(manager.broadcast_occupancy, event.id, occupancy_payload(event))
     return to_event(event)
 
 
@@ -235,7 +249,7 @@ def delete_event(
     Event đã PUBLISHED/ONGOING có thể đã có registration/ticket nên không
     cho xóa cứng — dùng transition sang CANCELLED thay thế (soft-delete).
     """
-    event = db.get(Event, event_id)
+    event = db.scalar(select(Event).where(Event.id == event_id).with_for_update())
     if event is None:
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
     if event.organizer_id != user.id:
@@ -243,6 +257,11 @@ def delete_event(
     if event.status != "DRAFT":
         api_error(400, "EVENT_NOT_DELETABLE", "Only DRAFT events can be deleted")
 
+    # DRAFT vẫn có thể đã gán staff: xóa assignment trước để không vi phạm FK.
+    from sqlalchemy import delete
+    from ..models import StaffEventAssignment
+
+    db.execute(delete(StaffEventAssignment).where(StaffEventAssignment.event_id == event.id))
     db.delete(event)
     db.commit()
     return None
@@ -263,10 +282,11 @@ def transition_event(
 ):
     """Chuyển trạng thái sự kiện theo máy trạng thái VALID_TRANSITIONS.
 
-    Khi sang COMPLETED, lên lịch background task gửi thông báo cho attendee.
-    BackgroundTasks chỉ dành cho việc NGẮN sau response — không phải queue thật.
+    Khi sang COMPLETED hoặc CANCELLED, lên lịch background task gửi thông báo
+    (mail demo) cho attendee còn đăng ký. BackgroundTasks chỉ dành cho việc
+    NGẮN sau response — không phải queue thật.
     """
-    event = db.get(Event, event_id)
+    event = db.scalar(select(Event).where(Event.id == event_id).with_for_update())
     if event is None:
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
     if event.organizer_id != user.id:
@@ -276,16 +296,24 @@ def transition_event(
         api_error(400, "INVALID_TRANSITION", "This event transition is not allowed")
 
     # Read emails trước khi commit để background task chỉ cần gửi, không truy DB.
-    emails = _registered_emails(db, event.id) if payload.status == "COMPLETED" else []
+    notify_statuses = {"COMPLETED", "CANCELLED"}
+    emails = _registered_emails(db, event.id) if payload.status in notify_statuses else []
 
     event.status = payload.status
     db.commit()
     db.refresh(event)
 
-    if payload.status == "COMPLETED" and emails:
+    # Mọi client WS đang xem event đều nhận status mới realtime —
+    # fix lỗi attendee kẹt ở trạng thái cũ khi organizer đổi trạng thái.
+    background_tasks.add_task(
+        manager.broadcast_occupancy, event.id, occupancy_payload(event)
+    )
+
+    if payload.status in notify_statuses and emails:
         # Đăng ký background task: FastAPI gọi async notify_attendees sau khi
         # response đã được gửi đi -> client không phải đợi việc gửi email.
-        background_tasks.add_task(notify_attendees, event.title, emails)
+        subject = "cancelled" if payload.status == "CANCELLED" else "completed"
+        background_tasks.add_task(notify_in_background, event.title, emails, subject)
 
     return to_event(event)
 
@@ -306,15 +334,18 @@ async def notify_event_now(
         và đọc DB trước khi handler này chạy.
       - Toàn bộ công việc của handler là network I/O (gửi email/webhook) — có
         awaitable operation thật sự.
-      - ``await notify_attendees(...)`` chờ phản hồi HTTP của dịch vụ gửi
-        thông báo; trong lúc chờ, event loop vẫn phục vụ các request khác.
+      - ``await notify_attendees(...)`` chờ HTTP async hoặc SMTP trong thread;
+        trong lúc chờ, event loop vẫn phục vụ các request khác.
 
     So với transition->COMPLETED ở trên: endpoint đó dùng background task vì
     không muốn bắt client đợi; endpoint này chủ động chờ (organizer muốn gửi
     và chờ kết quả) — đây chính là "async đúng chỗ".
     """
     # ĐIỂM MẤU CHỐT: đây là await I/O thật, không block event loop.
-    sent = await notify_attendees(target.event_title, target.attendee_emails)
+    try:
+        sent = await notify_attendees(target.event_title, target.attendee_emails)
+    except (httpx.HTTPError, NotificationError):
+        api_error(502, "NOTIFICATION_FAILED", "Notification service is unavailable")
 
-    mode = "webhook" if settings.notify_webhook_url else "simulated"
+    mode = notification_mode()
     return NotifyOut(event_id=target.event_id, emails_sent=sent, mode=mode)

@@ -12,6 +12,7 @@ Giới hạn Phase 0 (ghi rõ để báo cáo trung thực):
 import asyncio
 import secrets
 import time
+from threading import Lock
 
 from fastapi import WebSocket
 
@@ -22,11 +23,17 @@ from fastapi import WebSocket
 WS_TICKET_TTL_SECONDS = 30
 
 _tickets: dict[str, tuple[str, float]] = {}  # ticket -> (user_id, expires_at)
+_ticket_lock = Lock()  # mint/redeem được gọi từ các worker thread của sync dependency
 
 
 def mint_ws_ticket(user_id: str) -> str:
     ticket = secrets.token_urlsafe(32)
-    _tickets[ticket] = (user_id, time.monotonic() + WS_TICKET_TTL_SECONDS)
+    now = time.monotonic()
+    with _ticket_lock:
+        # Dọn ticket không được sử dụng, tránh tăng bộ nhớ theo mỗi lần cấp ticket.
+        for expired in [key for key, (_, deadline) in _tickets.items() if deadline <= now]:
+            del _tickets[expired]
+        _tickets[ticket] = (user_id, now + WS_TICKET_TTL_SECONDS)
     return ticket
 
 
@@ -34,7 +41,8 @@ def redeem_ws_ticket(ticket: str | None) -> str | None:
     """Đổi ticket lấy user_id; ticket sai/hết hạn/đã dùng -> None."""
     if not ticket:
         return None
-    found = _tickets.pop(ticket, None)
+    with _ticket_lock:
+        found = _tickets.pop(ticket, None)
     if found is None:
         return None
     user_id, expires_at = found
