@@ -1,31 +1,29 @@
-# Kịch bản demo end-to-end
+# Demo FastAPI end-to-end — 5–7 phút
 
-Điều kiện: backend + PostgreSQL đã chạy, đã seed (`python -m app.seed`).
+Chuẩn bị PostgreSQL, migration, seed, backend và frontend. Mật khẩu tài khoản demo: 123456. Dùng hai browser profile độc lập; tạo event mới để không phụ thuộc thời gian/vé của lần demo trước.
 
-## 1. Tự đăng ký & tham dự (ATTENDEE)
+## 1. Swagger và validation — 1 phút
 
-1. Mở `/login` → **Create an attendee account**, tạo tài khoản mới.
-2. Tại `/events`, tìm sự kiện `PUBLISHED` còn chỗ → **View event** → **Register now**.
-3. Mở `/registrations` → **View ticket** xem mã vé → **Cancel** để hủy (vé vô hiệu, trả slot).
+Mở http://localhost:8000/docs. Login organizer@demo.com, Authorize bằng access_token. Giải thích schema Pydantic, Depends và security của route. Thử capacity âm hoặc end trước start để thấy 422; route bảo vệ thiếu token trả 401, sai role trả 403.
 
-## 2. Trường hợp biên
+## 2. Organizer chuẩn bị — 1 phút
 
-- Event đầy chỗ (ví dụ **Career Fair: Future Makers** sau seed) hiển thị **Sold out**.
-- Đăng ký trùng (kể cả sau khi đã hủy) → lỗi `ALREADY_REGISTERED`.
-- Đăng ký event chưa `PUBLISHED` hoặc đã qua giờ bắt đầu → `REGISTRATION_CLOSED` / `EVENT_STARTED`.
+Login organizer → Create event. Nhập lịch ngày mai, capacity 5, tên dễ tìm → Create draft → Publish. Tab Staff gán staff@demo.com. Có thể đổi lịch ở Schedule trước khi mở cửa.
 
-## 3. Check-in (STAFF)
+## 3. Đăng ký và realtime — 1–2 phút
 
-1. Đăng nhập `staff@demo.com`, mở **Check-in**.
-2. Nhập `AI-MEET-2026` (vé của `attendee@demo.com` cho **AI Product Meetup** `ONGOING`)
-   → **Validate & check in**.
-3. Nhập lại cùng mã → lỗi `TICKET_ALREADY_USED` (vé một lần duy nhất).
+Organizer mở Live và chọn event mới. Profile B login attendee@demo.com → Explore → event → Register. Số Registered tăng 1, Left giảm 1 và Last changes thêm +1 không reload. Mở My tickets và View ticket, sao chép mã vé.
 
-## 4. Quản lý (ORGANIZER)
+Để demo hủy: dùng một attendee khác như linh@demo.com đăng ký rồi Cancel registration khi Published. Live nhận +1 rồi -1. Giữ vé của attendee@demo.com cho bước check-in; vé của Linh đã hủy không dùng được và không đăng ký lại cùng event.
 
-1. Đăng nhập `organizer@demo.com` → **Dashboard** xem tổng đăng ký/check-in.
-2. **Create event** → tạo nháp `DRAFT` → trang **Manage**: **Publish** → **Start** →
-   **Mark completed**; **Reschedule** đổi giờ; **Notify attendees** gửi thông báo;
-   **Delete draft** xóa khi còn nháp; **Cancel event** khi `DRAFT`/`PUBLISHED`.
-3. **Assign staff**: chọn tài khoản staff trong dropdown để phân công check-in.
-4. Mở `/organizer/live` xem occupancy realtime (kịch bản ở [`realtime-dashboard.md`](realtime-dashboard.md)).
+## 4. Check-in — 1–2 phút
+
+Organizer về Manage → Start event (STARTED). Profile B sign out attendee rồi login staff@demo.com → Check-in → chọn event mới → nhập mã vé đã giữ → Enter. Kết quả Admitted, lịch sử có lượt thành công. Nhập lại cùng mã → Already scanned; nhập mã không tồn tại → Not found.
+
+Giải thích ticket lock và UNIQUE checkins.ticket_id. Registered không tăng khi check-in vì đó là số đăng ký, không phải số người vào cửa.
+
+## 5. Async và kết thúc — 1 phút
+
+Organizer chọn Notify attendees: SMTP/Mailpit nhận email thật (vé có PNG QR); nếu cả SMTP và webhook trống thì simulated. Chỉ ra SMTP chạy trong thread hoặc async HTTP I/O của notifier, và BackgroundTasks sau commit. Complete event đóng cửa. Giải thích lifespan task tự mở cửa trước start 15 phút và hoàn thành sau end, tối đa một chu kỳ quét 60 giây.
+
+Khi được hỏi về mở rộng: WS/ticket hiện trong RAM một worker; nhiều worker cần pub/sub dùng chung. BackgroundTasks không có hàng đợi/retry bền vững. Test SQLite kiểm tra API, test PostgreSQL kiểm chứng FOR UPDATE.

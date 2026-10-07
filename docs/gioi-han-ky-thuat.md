@@ -1,53 +1,33 @@
-# Nguyên liệu Chương 13 — Giới hạn kỹ thuật & quyết định thiết kế
+# Giới hạn và điều kiện triển khai
 
-(Tài liệu này trả lời trước các câu hỏi phản biện của hội đồng.)
+## Phạm vi MVP
 
-## 1. WebSocket in-memory: Single-node limitation
-- `ConnectionManager` giữ `dict[event_id, set[WebSocket]]` trong RAM tiến trình.
-- Chạy `uvicorn --workers 4`: 4 process độc lập, client ở worker khác không nhận
-  broadcast từ worker xử lý register. Đây là giới hạn đã biết, chấp nhận ở quy mô đồ án.
-- Phương án mở rộng (ghi trong Chương 14): Redis Pub/Sub — worker publish occupancy,
-  mọi worker subscribe và đẩy tới room của mình. Minh chứng Tầng 3 C2.3.
+Đồ án minh chứng FastAPI, không triển khai thanh toán, upload ảnh, quét QR bằng camera, hộp thư push hoặc hệ thống email production. Web client hỗ trợ thao tác demo; máy quét vé có đầu ra bàn phím có thể dùng với ô mã.
 
-## 2. WS auth: ticket handshake thay JWT trên query string
-- Trước đây `?token=<JWT>` — sai vì token dính log proxy (Nginx/ALB), Referer, history.
-- Hiện tại: `POST /ws/ticket` (header Authorization, ORGANIZER) cấp ticket 30s
-  dùng 1 lần; WS chỉ nhận `?ticket=`. Ticket hết hạn/dùng lại -> 4401, sai role ->
-  4403, sai event -> 4404. Test: `test_ws_ticket_one_time_use`.
-- Còn lại: ticket chưa gắn event cụ thể (dùng được cho mọi event của organizer) —
-  chấp nhận vì scope dashboard admin; ghi nhận để không bị hỏi bất ngờ.
+## Một worker
 
-## 3. BackgroundTasks không phải queue thật
-- `register` (gửi vé/QR) và `transition COMPLETED` (notify) dùng BackgroundTasks:
-  task ngắn, chạy sau response, không retry, mất khi restart process.
-- Tác vụ nặng/dài phải dùng Celery/RabbitMQ + outbox + idempotency (Chương 14).
+ConnectionManager và WS ticket nằm trong RAM. Chạy một Uvicorn worker; nhiều worker có thể không tìm thấy ticket hoặc không nhận broadcast ở worker khác. Lifecycle cũng chạy trong từng tiến trình. Mở rộng cần shared ticket store/pub-sub và scheduler có cơ chế điều phối.
 
-## 4. Email/SMTP thật chưa có
-- `NOTIFY_WEBHOOK_URL` để cắm webhook thật; mặc định simulate bằng `asyncio.sleep`.
-- Không xin credential SMTP vì ngoài phạm vi minh chứng FastAPI; client vẫn nhận
-  201 trong vài ms và task nền vẫn chạy (có test monkeypatch).
+Occupancy là dữ liệu công khai trong catalog; mọi user đã login được subscribe. WS ticket không gắn event và không phải kênh dữ liệu cá nhân. GET events hiện công khai cả nháp; UI lọc nháp nhưng đó không phải ranh giới bảo mật. Nếu nháp phải bí mật, cần đổi contract catalog/detail và kiểm thử quyền trước khi triển khai sản phẩm.
 
-## 5. Danh mục quyết định mã lỗi (nhất quán 400 vs 422)
-- `422 VALIDATION_ERROR`: payload sai shape/kiểu hoặc quan hệ trong payload
-  (end <= start qua `model_validator`, email sai, capacity âm).
-- `400` nghiệp vụ cần trạng thái hiện tại/DB: `INVALID_EVENT_TIME` (start quá khứ),
-  `REGISTRATION_CLOSED`, `EVENT_STARTED`, `INVALID_TRANSITION`, `EVENT_NOT_DELETABLE`,
-  `CURSOR_OFFSET_CONFLICT`.
-- PATCH gửi 1 mốc thời gian: Pydantic không thấy DB nên endpoint merge rồi check
-  qua `_validate_event_time` -> `400`. Đây là thiết kế có chủ đích, không phải lọt lưới.
+## Thông báo
 
-## 6. Thời gian: naive-UTC thống nhất
-- Cột DB là `DateTime` không tz; toàn bộ so sánh dùng naive-UTC qua `models.utcnow()`
-  (thay `datetime.utcnow()` deprecated từ Python 3.12).
-- Datetime aware (ISO có 'Z') được chuẩn hóa qua `_as_naive` trước khi so sánh.
+SMTP_HOST bật gửi email/QR qua SMTP; không có SMTP thì dùng webhook nếu được cấu hình; không có cả hai thì mô phỏng I/O. Mailpit profile mail phục vụ hộp thư demo local. BackgroundTasks chạy sau commit, không có retry bền vững/outbox. Lỗi gửi nền ghi log; Notify thủ công trả 502 khi transport lỗi. Không đảm bảo giao email tới người nhận.
 
-## 7. Test SQLite vs PostgreSQL thật
-- Test mặc định dùng SQLite in-memory (nhanh, CI): không chứng minh được row lock.
-- `FOR UPDATE` được chứng minh bằng `tests/test_concurrency_pg.py` trên PG compose
-  (5 thread × capacity 1 -> `[201, 409×4]`), skip khi không có `TEST_POSTGRES_URL`.
-- Benchmark index/cursor chạy trên PG compose 3000 rows (`scripts/bench_events.py`).
+## Thời gian
 
-## 8. Secret local-only
-- JWT secret, DB password, pgAdmin password trong Compose/`.env.example` chỉ cho
-  local development; deploy phải qua biến môi trường/kho bí mật, bật `secure=True`
-  cho cookie và HTTPS.
+start/end dùng DateTime naive theo giờ địa phương máy chủ. Input có timezone được đổi sang giờ địa phương trước validation/lưu; timestamp nội bộ/audit là UTC naive. Demo cần server và browser cùng timezone, ví dụ Asia/Ho_Chi_Minh. Triển khai đa múi giờ cần contract UTC aware và timezone hiển thị rõ ràng.
+
+Lifecycle mỗi 60 giây nên trạng thái tự động có thể trễ một chu kỳ; có thể chuyển thủ công khi demo. Startup catch-up hoàn thành sự kiện đã hết giờ.
+
+## Giao dịch và kiểm thử
+
+PostgreSQL FOR UPDATE giữ bất biến capacity/vé; SQLite không chứng minh được row lock. Các thao tác ghi dùng thứ tự Event trước Registration/Ticket. Check-in một vé chỉ một lần nhờ lock và UNIQUE.
+
+API đăng ký/hủy không cho tái đăng ký sau hủy. Lịch sử check-in giới hạn tối đa 100 dòng, chưa có cursor. Danh sách Events của organizer phân trang/filter/sort trên server; danh sách tổng quan dashboard và users chưa phân trang. Counter trong dữ liệu seed mới khớp registration thật; database seed cũ không tự được sửa lại.
+
+## Triển khai local và mở rộng
+
+Để demo: PostgreSQL Compose, migration, seed, Uvicorn một worker và Vite. Để phục vụ HTTPS: đặt JWT_SECRET riêng ít nhất 32 byte, COOKIE_SECURE=true, ALLOW_LOCALHOST_ORIGINS=false và FRONTEND_ORIGIN chính xác; dùng reverse proxy hỗ trợ WebSocket và host fallback cho SPA. Refresh cookie SameSite=lax cần frontend/API cùng site.
+
+Cần bổ sung theo quy mô thực tế: quản lý secrets/DB credentials, TLS, backup, rate limiting, quan sát lỗi, cleanup refresh tokens và triển khai build frontend tĩnh. /health chỉ là liveness; readiness cần kiểm tra DB riêng. Những hạng mục này ngoài phạm vi chốt MVP hiện tại.

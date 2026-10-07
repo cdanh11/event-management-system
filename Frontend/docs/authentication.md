@@ -1,24 +1,15 @@
-# Đăng nhập & phiên làm việc
+# Đăng nhập và phiên
 
-## Luồng
+Trang /login hỗ trợ đăng nhập, tạo tài khoản ATTENDEE và chọn tài khoản demo. /register chuyển tới chế độ đăng ký. Access token ở bộ nhớ; refresh token ở cookie HttpOnly. User lưu cục bộ để hiển thị, không dùng làm căn cứ phân quyền backend.
 
-1. `/login` có hai chế độ: **Sign in** và **Sign up** (tự mở tài khoản `ATTENDEE`
-   qua `POST /auth/register`; mật khẩu tối thiểu 6 ký tự).
-2. `AuthContext.login/register` lưu access token vào bộ nhớ (biến module trong
-   `apiClient.ts`, không lưu localStorage) và lưu `user` vào localStorage để giữ
-   phiên hiển thị.
-3. Khi app khởi động, `AuthProvider` gọi `GET /auth/me` để khôi phục phiên; refresh
-   token trong HttpOnly cookie tự làm mới access token khi gặp `401`.
-4. `logout` gọi `POST /auth/logout`, xóa token và user.
+AuthProvider phục hồi phiên trước khi route quyết định chuyển trang. apiClient refresh khi request bảo vệ nhận 401; các request đồng thời dùng chung một promise. Lỗi sai mật khẩu không kích hoạt refresh. Refresh thất bại xóa phiên và đưa người dùng về login. Logout gọi API thu hồi refresh cookie rồi xóa trạng thái client.
 
-## Phân luồng theo vai trò
+| Role | Trang chủ |
+| --- | --- |
+| ATTENDEE | /events |
+| STAFF | /staff |
+| ORGANIZER | /organizer |
 
-| Role | Trang chủ | Chức năng |
-| --- | --- | --- |
-| `ATTENDEE` | `/events` | Khám phá, đăng ký/hủy vé, xem vé (`/registrations`, `/tickets/:id`) |
-| `STAFF` | `/staff/check-in` | Check-in vé bằng ticket code |
-| `ORGANIZER` | `/organizer` | Dashboard, tạo/quản lý event, live occupancy (`/organizer/live`) |
+RoleGuard đưa người chưa login về /login, người sai role tới thông báo thiếu quyền. URL được nhớ sau login phải thuộc role của tài khoản vừa đăng nhập.
 
-`RoleGate` chặn route sai vai trò và điều hướng về trang chủ đúng role.
-Tài khoản demo (mật khẩu `123456`): `attendee@demo.com`, `staff@demo.com`,
-`organizer@demo.com` — chỉ có sau khi chạy seed backend.
+Demo các tài khoản độc lập bằng browser profile hoặc cửa sổ riêng; các tab cùng origin/profile dùng chung cookie và localStorage.
