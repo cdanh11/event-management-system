@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Any, Literal
 import re
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator, model_validator
 
 from .models import as_local_naive
 
@@ -71,19 +71,22 @@ class UserOut(BaseModel):
 
 
 def login_email(identifier: str) -> str:
-    """Alias demo đánh số trỏ tới email duy nhất; không xác thực theo tên hiển thị."""
+    """Username đánh số trỏ tới email duy nhất; không xác thực theo tên hiển thị.
+
+    Giữ miền email của tài khoản seed cũ để các liên kết và vé vẫn hợp lệ.
+    """
     identifier = identifier.strip().lower()
     return f"{identifier}@demo.com" if re.fullmatch(r"(?:user|staff|organizer)[1-9][0-9]*", identifier) else identifier
 
 
 class LoginIn(BaseModel):
-    """Body của POST /auth/login."""
-    email: EmailStr
+    """Nhận username hoặc email; giữ key email để tương thích client hiện có."""
+    email: EmailStr = Field(validation_alias=AliasChoices("email", "username"))
     password: str = Field(min_length=1, max_length=128)
 
     @field_validator("email", mode="before")
     @classmethod
-    def accept_demo_alias(cls, value):
+    def accept_username(cls, value):
         return login_email(value) if isinstance(value, str) else value
 
 
