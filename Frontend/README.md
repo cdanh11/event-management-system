@@ -1,6 +1,6 @@
 # Evently Web MVP
 
-Client React/TypeScript/Vite dùng dữ liệu FastAPI thật. Mục tiêu là demo công nghệ và thao tác nghiệp vụ trên web; giao diện giữ các màn hình cần thiết, không có ảnh banner, preview, biểu đồ hoặc hộp thông báo phụ.
+Client React/TypeScript/Vite dùng dữ liệu FastAPI thật. Mục tiêu là minh họa công nghệ và thao tác nghiệp vụ trên web; giao diện giữ các màn hình cần thiết, không có ảnh banner, preview, biểu đồ hoặc hộp thông báo phụ.
 
 ## Chạy
 
@@ -26,7 +26,7 @@ Trong Manage, Overview chứa thông tin và hành động lifecycle; Staff gán
 
 Form Create event kiểm tra thông tin bắt buộc, thời gian tương lai, end sau start và capacity nguyên dương. Create draft tạo nháp; Publish mới mở đăng ký. Begin preparation đóng đăng ký, Start event mở check-in, Complete event kết thúc.
 
-Vé QR chứa mã thật từ API. Vé đã hủy hoặc đã check-in không dùng lại được. Sau khi hủy không thể đăng ký lại cùng sự kiện; dùng attendee khác để demo tiếp. Màn hình Check-in gửi cả mã vé và ID event đang chọn để backend kiểm tra trước khi nhận vé.
+Vé QR chứa mã thật từ API. Vé đã hủy hoặc đã check-in không dùng lại được. Sau khi hủy không thể đăng ký lại cùng sự kiện; dùng attendee khác để thử tiếp. Màn hình Check-in gửi cả mã vé và ID event đang chọn để backend kiểm tra trước khi nhận vé.
 
 Dashboard hiển thị Registered/Left/Fill và thay đổi gần nhất trong phiên. WebSocket cập nhật đăng ký/hủy, capacity và trạng thái; REST dự phòng khi mất kết nối. Check-in không thay đổi số đăng ký. Notify dùng SMTP, webhook hoặc simulated theo cấu hình backend. SMTP có email xác nhận kèm PNG QR; xem hướng dẫn Mailpit tại README gốc.
 
