@@ -25,11 +25,28 @@ def uid() -> str:
 def utcnow() -> datetime:
     """UTC hiện tại dạng naive — khớp cột DateTime (không tz) trong DB.
 
-    Thay ``utcnow()`` đã deprecated từ Python 3.12.
-    Mọi so sánh thời gian trong app dùng naive-UTC thống nhất; datetime
-    aware (client gửi ISO có 'Z') phải qua ``_as_naive`` trước khi so.
+    Thay ``datetime.utcnow()`` đã deprecated từ Python 3.12.
+    Dùng cho các mốc nội bộ (token expiry). Giờ WALL-CLOCK của event
+    (start/end do organizer nhập, seed) dùng ``localnow`` bên dưới.
     """
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def localnow() -> datetime:
+    """Giờ hiện tại dạng naive theo giờ máy chủ — khung so sánh cho giờ event.
+
+    Quy ước: API nhận ISO naive được hiểu là giờ địa phương (khớp input
+    datetime-local của FE và seed); ISO aware được chuyển về giờ địa phương
+    qua ``as_local_naive`` trước khi so.
+    """
+    return datetime.now().replace(tzinfo=None)
+
+
+def as_local_naive(value: datetime) -> datetime:
+    """Chuẩn hóa datetime về naive-giờ-địa-phương để so với giờ event."""
+    if value.tzinfo is not None:
+        return value.astimezone().replace(tzinfo=None)
+    return value
 
 
 class User(Base):
@@ -53,7 +70,9 @@ class User(Base):
 
 class Event(Base):
     """Sự kiện. status theo máy trạng thái:
-    DRAFT -> PUBLISHED -> ONGOING -> COMPLETED; bất kỳ bước nào cũng có thể CANCELLED.
+    DRAFT -> PUBLISHED (public, mở đăng ký) -> ONGOING (đóng đăng ký, organizer
+    chuẩn bị) -> STARTED (mở check-in, tự động trước giờ bắt đầu 15 phút)
+    -> COMPLETED (tự động khi hết giờ). Hủy được ở DRAFT/PUBLISHED/ONGOING.
     """
 
     __tablename__ = "events"
