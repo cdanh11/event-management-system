@@ -38,7 +38,7 @@ def db():
 
 
 @pytest.fixture()
-def client(db):
+def client(db, monkeypatch):
     """TestClient dùng app thật nhưng thay get_db bằng session SQLite."""
 
     def override_get_db():
@@ -49,9 +49,17 @@ def client(db):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    # Lifespan cũng phải dùng DB test; dependency override chỉ thay DB của router.
+    # Không để pytest vô tình quét lifecycle trên database phát triển từ .env.
+    import app.services.lifecycle as lifecycle
+
+    real_sweep = lifecycle.sweep_due_events
+    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(TestSession))
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture()

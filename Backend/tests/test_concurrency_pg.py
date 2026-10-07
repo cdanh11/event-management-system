@@ -18,6 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import make_url
 
 from app.db import Base, get_db
 from app.main import app
@@ -42,10 +43,14 @@ def _payload():
 
 
 @needs_pg
-def test_concurrent_register_capacity_one():
+def test_concurrent_register_capacity_one(monkeypatch):
+    assert make_url(PG_URL).database != "evently", "Dùng database kiểm thử riêng, không dùng DB demo evently"
     engine = create_engine(PG_URL)
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    import app.services.lifecycle as lifecycle
+    real_sweep = lifecycle.sweep_due_events
+    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(Session))
 
     def override_get_db():
         session = Session()
@@ -92,9 +97,9 @@ def test_concurrent_register_capacity_one():
             results: list[int] = []
 
             def race(headers):
-                with TestClient(app) as c:
-                    r = c.post(f"/events/{event_id}/register", headers=headers)
-                    results.append(r.status_code)
+                # Dùng chung portal của app; không mở 5 lifespan/sweeper riêng.
+                r = client.post(f"/events/{event_id}/register", headers=headers)
+                results.append(r.status_code)
 
             threads = [threading.Thread(target=race, args=(h,)) for h in att_h]
             for t in threads:
@@ -105,29 +110,65 @@ def test_concurrent_register_capacity_one():
             assert sorted(results) == [201, 409, 409, 409, 409]
             assert client.get(f"/events/{event_id}").json()["registered_count"] == 1
 
-            # Dọn dữ liệu test bằng SQL thô theo thứ tự FK:
-            # ticket -> registration -> event -> refresh_tokens -> user.
-            from sqlalchemy import text
-            db = Session()
-            try:
-                reg_ids = [r[0] for r in db.execute(
-                    text("SELECT id FROM registrations WHERE event_id = :eid"),
-                    {"eid": event_id}).all()]
-                for rid in reg_ids:
-                    db.execute(text("DELETE FROM tickets WHERE registration_id = :rid"),
-                               {"rid": rid})
-                    db.execute(text("DELETE FROM registrations WHERE id = :rid"),
-                               {"rid": rid})
-                db.execute(text("DELETE FROM events WHERE id = :eid"), {"eid": event_id})
-                user_ids = [r[0] for r in db.execute(
-                    text("SELECT id FROM users WHERE email = ANY(:emails)"),
-                    {"emails": [org_email] + att_emails}).all()]
-                for uid in user_ids:
-                    db.execute(text("DELETE FROM refresh_tokens WHERE user_id = :uid"),
-                               {"uid": uid})
-                    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": uid})
-                db.commit()
-            finally:
-                db.close()
+    finally:
+        # Dọn theo email UUID của riêng lần chạy, kể cả assertion thất bại.
+        from sqlalchemy import delete, select
+        from app.models import Event, Registration, RefreshToken, Ticket
+
+        app.dependency_overrides.clear()
+        with Session.begin() as db:
+            user_ids = select(User.id).where(User.email.in_([org_email] + att_emails))
+            event_ids = select(Event.id).where(Event.organizer_id.in_(user_ids))
+            reg_ids = select(Registration.id).where(Registration.event_id.in_(event_ids))
+            db.execute(delete(Ticket).where(Ticket.registration_id.in_(reg_ids)))
+            db.execute(delete(Registration).where(Registration.event_id.in_(event_ids)))
+            db.execute(delete(Event).where(Event.organizer_id.in_(user_ids)))
+            db.execute(delete(RefreshToken).where(RefreshToken.user_id.in_(user_ids)))
+            db.execute(delete(User).where(User.email.in_([org_email] + att_emails)))
+        engine.dispose()
+
+
+@needs_pg
+def test_refresh_token_can_only_rotate_once_under_race(monkeypatch):
+    """Hai request dùng cùng cookie: FOR UPDATE cho đúng một lần refresh thành công."""
+    from concurrent.futures import ThreadPoolExecutor
+    from sqlalchemy import delete
+    from app.models import RefreshToken
+
+    assert make_url(PG_URL).database != "evently", "Dùng database kiểm thử riêng"
+    engine = create_engine(PG_URL)
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine)
+    import app.services.lifecycle as lifecycle
+    real_sweep = lifecycle.sweep_due_events
+    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(sessions))
+    with sessions() as db:
+        user = User(name="Refresh race", email=f"refresh-{uuid.uuid4().hex}@demo.com",
+                    role="ATTENDEE", avatar_url="", password_hash=hash_password("123456"))
+        db.add(user)
+        db.commit()
+        user_id, email = user.id, user.email
+
+    def override_db():
+        with sessions() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            response = client.post("/auth/login", json={"email": email, "password": "123456"})
+            cookie = response.cookies["evently_refresh"]
+            gate = threading.Barrier(2)
+
+            def rotate(_):
+                gate.wait(timeout=10)
+                return client.post("/auth/refresh", headers={"Cookie": f"evently_refresh={cookie}"}).status_code
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                assert sorted(pool.map(rotate, range(2))) == [200, 401]
     finally:
         app.dependency_overrides.clear()
+        with sessions.begin() as db:
+            db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+            db.execute(delete(User).where(User.id == user_id))
+        engine.dispose()
