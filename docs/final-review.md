@@ -1,6 +1,6 @@
 # Kết quả chốt source Evently
 
-Ngày kiểm chứng: 07/10/2026. Phạm vi: backend FastAPI, frontend web MVP, migration, tests, cấu hình chạy và tài liệu kỹ thuật. Báo cáo Word do nhóm viết riêng, không được sửa trong đợt này. Source được chia thành các commit chức năng trên năm branch, push theo chuỗi; main do người dùng merge trên web.
+Ngày kiểm chứng: 07/10/2026. Phạm vi: backend FastAPI, frontend web MVP, migration, tests, cấu hình chạy và tài liệu kỹ thuật. Báo cáo Word do nhóm viết riêng, không được sửa trong đợt này. Source được chia thành các commit chức năng. PR frontend bao gồm ba nhóm foundation/attendee/operations để đảm bảo test/build đầy đủ; main do người dùng merge trên web.
 
 ## Kết luận theo tầng công nghệ
 
@@ -68,3 +68,7 @@ Source có thể chốt cho demo theo phạm vi trên. Việc nộp cần commit
 Seed idempotent bổ sung 2 organizer, 5 staff, 100 attendee, 10 event mở và 5 completed, 278 registration/ticket, 75 check-in và 30 assignment. Tài khoản đăng nhập bằng alias đánh số hoặc email; không reset DB cũ. Đã kiểm chứng chạy lại không thêm bản ghi hoặc phục hồi trạng thái người dùng đã đổi. Tổng database hiện tại lớn hơn dataset do giữ các bản ghi cũ.
 
 Trước push: source-map-js trong lockfile được nâng từ 1.2.1 lên 1.2.2 bằng commit riêng; npm audit sau cập nhật không còn cảnh báo.
+
+## Sửa cách đóng PR frontend sau lỗi CI
+
+CI của foundation tại 925059d lỗi npm test vì chưa có file tests và thiếu các trang router import. Nguyên nhân là ranh giới branch chưa khép kín phụ thuộc, không phải bản vá source-map-js. PR #10 được cập nhật bằng fast-forward tới b15d77f, chứa đủ 20 commit frontend. Không tắt/skip kiểm thử. Backend PR #9 đã merge; tiếp theo chỉ cần PR #10 và documentation.

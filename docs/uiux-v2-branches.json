@@ -2,7 +2,7 @@
   "base_commit": "1f341949103bac04c9d615262d4902f4afaef414",
   "integration_branch": "feature/uiux-v2-integration",
   "committed": true,
-  "notes": "Published stack; merge backend, foundation, attendee, operations, documentation using merge commits. Integration remains local.",
+  "notes": "Backend PR #9 merged. PR #10 foundation includes attendee and operations commits after CI dependency fix. Merge foundation then documentation; no separate attendee/operations PR required.",
   "groups": {
     "foundation": {
       "branch": "feature/uiux-v2-foundation",
@@ -343,7 +343,7 @@
           "sha256": "fe32fe330b113e9ce6f89556fd28ea898c625958b3e2b3df43c5ec254770455d"
         }
       ],
-      "head": "925059db2b18746c6302a04b262dd5836c370834",
+      "head": "b15d77f1589ff9b589214a7aeb27937c4a934ef8",
       "commits": [
         "e470616 chore(repo): exclude local files and configure PostgreSQL CI and Mailpit",
         "df03378 build(frontend): streamline dependencies and lint source explicitly",
@@ -356,7 +356,20 @@
         "4fb434a refactor(frontend): wire desktop shell and lazy role routes",
         "0b5db44 chore(frontend): remove unused mock data and async wrapper",
         "ee4a2d9 chore(review): retain scoped worktree synchronization utility",
-        "925059d fix(deps): patch source-map-js denial-of-service advisory"
+        "925059d fix(deps): patch source-map-js denial-of-service advisory",
+        "419d7f4 feat(events-ui): add filtered agendas and event cache helpers",
+        "b089c74 feat(attendee): complete discovery and event registration views",
+        "7dd4af5 feat(tickets-ui): display real QR tickets and retryable cancellation",
+        "7204a7b feat(realtime-ui): manage occupancy subscriptions and reconnect state",
+        "ea6ff18 feat(check-in-ui): add shared scanning desk and admission feedback",
+        "317e316 feat(organizer-ui): add event forms staff assignment and lifecycle actions",
+        "4a9bdcd feat(organizer-ui): add paginated events and realtime dashboard",
+        "b15d77f test(frontend): verify sessions realtime forms and action retries"
+      ],
+      "included_scopes": [
+        "foundation",
+        "attendee",
+        "operations"
       ]
     },
     "attendee": {

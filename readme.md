@@ -45,7 +45,7 @@ npm --version
 docker compose version
 ```
 
-Cần clone phiên bản chứa source mới: source cuối được push theo chuỗi branch, main chỉ có đầy đủ sau khi merge. Trước khi merge, dùng `git switch --track origin/feature/uiux-v2-documentation` để chạy toàn bộ source cuối. Repo private cần quyền truy cập. Sau clone thực hiện lần lượt các bước dưới đây; không sao chép .venv/node_modules/database từ máy khác.
+Cần clone phiên bản chứa source mới: backend PR #9 đã merge; source frontend hoàn chỉnh nằm trong PR #10 (foundation, gồm cả attendee/operations), sau đó merge documentation. Main chỉ có đầy đủ sau khi merge. Trước khi merge, dùng `git switch --track origin/feature/uiux-v2-documentation` để chạy toàn bộ source cuối. Repo private cần quyền truy cập. Sau clone thực hiện lần lượt các bước dưới đây; không sao chép .venv/node_modules/database từ máy khác.
 
 **1. PostgreSQL**
 

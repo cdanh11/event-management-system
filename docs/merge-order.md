@@ -1,10 +1,18 @@
 # Thứ tự merge source Evently
 
-Năm branch xếp thành chuỗi phụ thuộc từ main hiện tại. Merge theo thứ tự bên dưới trên GitHub; chọn **Create a merge commit** để giữ ancestry và các commit chức năng. Không squash/rebase-merge giữa chuỗi: các branch sau chứa commits của branch trước.
+## Thứ tự merge sau khi sửa CI PR #10
 
-Frontend foundation/attendee là phần chuyển đổi chưa đầy đủ; kiểm chứng toàn bộ frontend ở operations/documentation. Không dùng source giữa chuỗi để demo. Branch documentation chứa toàn bộ source cuối trước khi main được merge.
+| Thứ tự | PR/branch | Phạm vi |
+| --- | --- | --- |
+| 1 | Backend, PR #9 | Đã merge vào main |
+| 2 | feature/uiux-v2-foundation, PR #10 | Frontend hoàn chỉnh: 20 commit từ foundation, attendee và operations |
+| 3 | feature/uiux-v2-documentation | Tài liệu, ảnh minh chứng và hướng dẫn merge đã sửa |
 
-Branch integration giữ bản làm việc tổng hợp local, không push một commit gộp. Không sửa báo cáo Word trong đợt này.
+Chọn **Create a merge commit**. Không cần mở/merge PR riêng cho attendee và operations: các commit của hai branch này đã nằm trong PR #10. Các branch riêng được giữ để tham chiếu phạm vi và lịch sử.
+
+CI cũ của foundation lỗi do npm test trỏ tới file chưa có, đồng thời router tham chiếu các trang ở branch tiếp theo. Foundation đã fast-forward tới đầy đủ frontend, giữ từng commit theo chức năng; không skip test, không thêm placeholder và không tạo commit gộp. Tất cả bước npm ci/lint/test/audit-copy/build phải chạy trên branch này trước merge.
+
+Branch documentation chứa toàn bộ source cuối trước khi main được merge. Integration là bản tổng hợp local. Báo cáo Word không sửa. Các mục dưới đây liệt kê file theo nhóm commit ban đầu, không còn là năm PR cần merge riêng.
 
 ## 1. feature/backend-realtime-lifecycle
 
@@ -91,7 +99,7 @@ Base ban đầu: `main`. Merge vào `main` sau các branch trước.
 
 ## 2. feature/uiux-v2-foundation
 
-Base ban đầu: `feature/backend-realtime-lifecycle`. Merge vào `main` sau các branch trước.
+Base backend đã merge. PR #10 bao gồm cả các nhóm attendee/operations bên dưới.
 
 ### chore(repo): exclude local files and configure PostgreSQL CI and Mailpit
 
@@ -196,7 +204,7 @@ Base ban đầu: `feature/backend-realtime-lifecycle`. Merge vào `main` sau cá
 
 ## 3. feature/uiux-v2-attendee
 
-Base ban đầu: `feature/uiux-v2-foundation`. Merge vào `main` sau các branch trước.
+Các commit này đã được bao gồm trong PR #10; không cần PR riêng.
 
 ### feat(events-ui): add filtered agendas and event cache helpers
 
@@ -219,7 +227,7 @@ Base ban đầu: `feature/uiux-v2-foundation`. Merge vào `main` sau các branch
 
 ## 4. feature/uiux-v2-operations
 
-Base ban đầu: `feature/uiux-v2-attendee`. Merge vào `main` sau các branch trước.
+Các commit này đã được bao gồm trong PR #10; không cần PR riêng.
 
 ### feat(realtime-ui): manage occupancy subscriptions and reconnect state
 
@@ -261,7 +269,7 @@ Base ban đầu: `feature/uiux-v2-attendee`. Merge vào `main` sau các branch t
 
 ## 5. feature/uiux-v2-documentation
 
-Base ban đầu: `feature/uiux-v2-operations`. Merge vào `main` sau các branch trước.
+Merge vào main sau PR #10.
 
 ### docs(setup): explain fresh clone installation and demo accounts
 
@@ -311,3 +319,10 @@ Base ban đầu: `feature/uiux-v2-operations`. Merge vào `main` sau các branch
 Bản source cuối: 80 backend tests, coverage 94%; 23 frontend tests; lint, copy audit và production build qua. PostgreSQL concurrency, migration/seed, SMTP và dữ liệu demo đã kiểm chứng local. GitHub Actions chạy khi push; chỉ coi CI remote thành công khi run tương ứng xanh.
 
 Không đưa .env, virtualenv, node_modules, dist, cache, coverage hoặc DB local vào commit. .env.example và dependency lock được giữ.
+
+### fix(docs): correct merge order after completing frontend PR
+
+- `readme.md`
+- `docs/merge-order.md`
+- `docs/final-review.md`
+- `docs/uiux-v2-branches.json`
