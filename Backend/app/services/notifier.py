@@ -134,9 +134,9 @@ async def send_ticket_email(
 ) -> str:
     """Gửi vé/QR cho 1 attendee sau khi đăng ký — chạy nền sau commit.
 
-    Chỉ nhận kiểu nguyên thủy (str), KHÔNG nhận ORM: BackgroundTasks chạy
-    sau khi response được gửi, lúc đó Session đã đóng, chạm ORM sẽ lỗi
-    DetachedInstanceError. Ưu tiên SMTP, tiếp đến webhook; không cấu hình
+    Chỉ nhận dữ liệu thuần để task không phụ thuộc trạng thái ORM hoặc vòng đời
+    Session của request. Thời điểm đóng dependency yield phụ thuộc scope và
+    phiên bản FastAPI. Ưu tiên SMTP, tiếp đến webhook; không cấu hình
     transport thì chỉ mô phỏng. SMTP chạy trong thread để tránh chặn event loop.
     """
     try:

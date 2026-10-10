@@ -29,8 +29,9 @@ def get_db():
     Cách hoạt động của dependency dạng generator (yield):
       1. FastAPI gọi hàm này khi bắt đầu xử lý request.
       2. Phần trước ``yield`` chạy -> trả ra ``db`` cho endpoint.
-      3. Sau khi endpoint trả response, code phía sau ``yield`` chạy
-         (ở đây là ``db.close()``) -> giải phóng tài nguyên.
+      3. Khi FastAPI kết thúc scope của dependency, ``finally`` đóng Session.
+         Scope mặc định là request; không suy ra Session luôn đóng trước task
+         nền. Task nên nhận dữ liệu thuần hoặc tự quản lý Session riêng.
     """
     db = SessionLocal()
     try:

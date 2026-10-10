@@ -2,7 +2,7 @@
 
 Lưu ý async: các endpoint ở đây dùng SQLAlchemy **sync** Session nên khai báo
 ``def`` (sync) — FastAPI sẽ chạy chúng trong threadpool, không chặn event loop.
-Đây chính là "biết khi nào KHÔNG cần async".
+Chọn kiểu hàm theo thư viện đang gọi; không tự đổi I/O sync thành async.
 """
 from datetime import timedelta
 
@@ -80,7 +80,8 @@ def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
     """Đăng nhập bằng username hoặc email + mật khẩu -> trả JWT và refresh cookie.
 
     Lưu ý: đây là endpoint **sync** hợp lệ vì công việc chính là truy vấn
-    DB đồng bộ (verify) và tạo JWT (thuần CPU) — không có gì để await.
+    DB đồng bộ và verify mật khẩu — các lời gọi này chạy trong threadpool.
+    Viết async def không tự chuyển các thao tác đó thành bất đồng bộ.
     """
     user = _authenticate(payload.email, payload.password, db)
 

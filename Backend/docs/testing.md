@@ -12,6 +12,12 @@ Fixture tạo SQLite in-memory riêng, override get_db và thay session factory 
 
 Bao phủ auth/rotation, validation, ownership, trạng thái, đăng ký/hủy, check-in một lần, chọn đúng event, capacity, webhook và WS. test_final_review.py giữ các ca hồi quy của đợt rà soát. test_release.py kiểm chứng OAuth2 form/role, OpenAPI DTO, organizer pagination, PATCH capacity qua WebSocket thật và email PNG QR bằng SMTP inbox local. Test gửi email không gọi dịch vụ bên ngoài. SQLite không hỗ trợ FOR UPDATE như PostgreSQL.
 
+Các ca hết hạn kiểm tra access JWT ký đúng nhưng exp đã qua, refresh cookie còn
+trên client nhưng bản ghi DB hết hạn, và WS ticket hết TTL. Test WS thay đồng hồ
+của riêng module realtime, không sleep hoặc thay đồng hồ của event loop. Kết nối
+thiếu/đã dùng/hết hạn ticket phải ném WebSocketDisconnect với code 4401; không
+bắt Exception chung vì có thể nuốt cả assertion của test.
+
 ## Kiểm thử PostgreSQL thật
 
 Dùng database riêng, ví dụ tạo khi Compose DB đang chạy (lệnh từ thư mục gốc):

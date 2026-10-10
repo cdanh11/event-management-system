@@ -5,9 +5,9 @@ Nơi khai báo:
 - exception handler tập trung: chuẩn hóa body lỗi + validation 422.
 - middleware: CORS (cho trình duyệt) + TimingLoggingMiddleware (log/thời gian).
 - OpenAPI: FastAPI tự sinh schema từ router, Pydantic và OAuth2PasswordBearer dependency.
-- async: chúng ta CHỈ dùng ``async def`` ở chỗ có I/O awaitable thật
-  (xem services.notifier + POST /events/{id}/notify); handler dùng DB sync
-  vẫn để ``def`` để FastAPI xử lý trong threadpool.
+- async: notifier, WebSocket, middleware và lifespan dùng coroutine; handler
+  dùng DB sync vẫn để ``def`` để FastAPI xử lý trong threadpool. ``async def``
+  không tự chuyển lời gọi blocking bên trong thành I/O bất đồng bộ.
 """
 import asyncio
 import logging
@@ -100,10 +100,11 @@ app.add_middleware(TimingLoggingMiddleware)
 # ---------------- Exception handler tập trung ----------------------------
 @app.exception_handler(HTTPException)
 async def http_error_handler(_: Request, exc: HTTPException):
-    """Chuẩn hóa MỌI lỗi HTTP thành body: {status, code, message}.
+    """Chuẩn hóa fastapi.HTTPException thành {status, code, message}.
 
     Nếu module khác đã trả dạng {code,message} thì giữ
-    nguyên; nếu không thì đóng gói lại để client xử lý thống nhất.
+    nguyên; nếu không thì đóng gói lại để client xử lý thống nhất. Lỗi routing
+    của Starlette và ngoại lệ chưa xử lý không thuộc phạm vi handler này.
     """
     if isinstance(exc.detail, dict):
         detail = exc.detail
@@ -146,7 +147,7 @@ app.include_router(api_router)
 def health():
     """Endpoint kiểm tra sức khỏe.
 
-    Đây là ví dụ endpoint KHÔNG cần async: không có I/O, không có gì để await;
-    viết ``async def`` ở đây chỉ vô ích và làm việc phân biệt async/sync mờ.
+    Đây là liveness, không kiểm tra kết nối DB. Endpoint hiện dùng ``def``;
+    ``async def`` cũng hợp lệ cho xử lý ngắn không blocking dù không có await.
     """
     return {"status": "ok"}
