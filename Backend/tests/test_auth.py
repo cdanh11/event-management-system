@@ -1,6 +1,14 @@
 """Test chức năng auth: login, refresh, logout, me, validation 422."""
 
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from sqlalchemy import func, select
+
+from app.config import settings
 from app.main import app
+from app.models import RefreshToken, utcnow
+from app.security import digest
 
 
 def test_login_success(client, make_user):
@@ -102,6 +110,49 @@ def test_me_with_token(client, auth_headers):
 def test_me_with_garbage_token(client):
     resp = client.get("/auth/me", headers={"Authorization": "Bearer garbage.token.here"})
     assert resp.status_code == 401
+
+
+def test_expired_access_token_is_rejected_but_refresh_still_works(client, make_user):
+    """Chữ ký đúng không thay thế exp; refresh còn hạn vẫn phục hồi phiên được."""
+    user = make_user("Expiry", "expiry@demo.com", "ATTENDEE")
+    login = client.post("/auth/login", json={"email": user.email, "password": "123456"})
+    assert login.status_code == 200
+    expired = jwt.encode(
+        {"sub": user.id, "role": user.role, "exp": datetime.now(timezone.utc) - timedelta(minutes=1)},
+        settings.jwt_secret, algorithm="HS256",
+    )
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {expired}"})
+    assert response.status_code == 401
+    assert response.json()["code"] == "UNAUTHORIZED"
+    assert response.headers["www-authenticate"] == "Bearer"
+
+    refreshed = client.post("/auth/refresh")
+    assert refreshed.status_code == 200
+    assert client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {refreshed.json()['access_token']}"},
+    ).status_code == 200
+
+
+def test_expired_refresh_token_cannot_rotate_or_create_a_session(client, make_user, db):
+    """Cookie vẫn còn nhưng bản ghi đã hết hạn: 401 và không sinh refresh mới."""
+    user = make_user("Refresh expiry", "refresh-expiry@demo.com", "ATTENDEE")
+    login = client.post("/auth/login", json={"email": user.email, "password": "123456"})
+    assert login.status_code == 200
+    row = db.scalar(select(RefreshToken).where(
+        RefreshToken.token_hash == digest(client.cookies.get("evently_refresh")),
+    ))
+    row.expires_at = utcnow() - timedelta(minutes=1)
+    db.commit()
+    before = db.scalar(select(func.count()).select_from(RefreshToken))
+
+    response = client.post("/auth/refresh")
+    assert response.status_code == 401
+    assert response.json()["code"] == "UNAUTHORIZED"
+    assert "access_token" not in response.json()
+    assert "set-cookie" not in response.headers
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(RefreshToken)) == before
+    assert db.get(RefreshToken, row.id).revoked_at is None
 
 
 def test_logout_clears_cookie(client, auth_headers):

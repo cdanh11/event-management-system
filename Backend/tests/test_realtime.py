@@ -2,7 +2,11 @@
 
 from datetime import datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
+from app import realtime
 
 
 def _payload(**overrides):
@@ -72,14 +76,13 @@ def test_ws_ticket_one_time_use(client, make_user):
     event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
 
     ticket = _ws_ticket(client, org)
-    with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}"):
-        pass
+    with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}") as ws:
+        assert ws.receive_json()["type"] == "snapshot"
 
-    try:
+    with pytest.raises(WebSocketDisconnect) as rejected:
         with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}"):
-            raise AssertionError("Ticket đã dùng phải bị từ chối")
-    except Exception:
-        pass
+            pytest.fail("Ticket đã dùng phải bị từ chối")
+    assert rejected.value.code == 4401
 
 
 def test_ws_rejects_missing_ticket(client, make_user):
@@ -88,11 +91,36 @@ def test_ws_rejects_missing_ticket(client, make_user):
     org = {"Authorization": f"Bearer {org_token}"}
     event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
 
-    try:
+    with pytest.raises(WebSocketDisconnect) as rejected:
         with client.websocket_connect(f"/ws/events/{event_id}"):
-            raise AssertionError("WS phải từ chối khi thiếu ticket")
-    except Exception:
-        pass
+            pytest.fail("WS phải từ chối khi thiếu ticket")
+    assert rejected.value.code == 4401
+
+
+def test_ws_rejects_expired_ticket(client, auth_headers, monkeypatch):
+    """Hết TTL phải từ chối dù ticket được cấp hợp lệ; không sleep trong test."""
+    org = auth_headers(role="ORGANIZER", email="expired-ws@demo.com")
+    event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
+    issued_at = realtime.time.monotonic()
+
+    # Thay đồng hồ riêng của module, không thay time.monotonic của event loop.
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(realtime, "time", SimpleNamespace(monotonic=lambda: issued_at))
+    ticket = _ws_ticket(client, org)
+    monkeypatch.setattr(
+        realtime, "time",
+        SimpleNamespace(monotonic=lambda: issued_at + realtime.WS_TICKET_TTL_SECONDS + 1),
+    )
+    with pytest.raises(WebSocketDisconnect) as rejected:
+        with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}"):
+            pytest.fail("Ticket hết hạn phải bị từ chối")
+    assert rejected.value.code == 4401
+
+    # Người dùng còn đăng nhập có thể xin ticket mới và kết nối bình thường.
+    fresh = _ws_ticket(client, org)
+    with client.websocket_connect(f"/ws/events/{event_id}?ticket={fresh}") as ws:
+        assert ws.receive_json()["event_id"] == event_id
 
 
 def test_ws_ticket_any_role_but_auth_required(client, auth_headers):
