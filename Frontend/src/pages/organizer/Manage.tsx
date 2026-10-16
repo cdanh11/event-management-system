@@ -15,6 +15,7 @@ import { DoorWorkspace } from '../../features/door/DoorDesk';
 import { ManageActions } from '../../features/organizer/ManageActions';
 import { ScheduleForm } from '../../features/organizer/ScheduleForm';
 import { CoverForm } from '../../features/organizer/CoverForm';
+import { EventImage } from '../../components/ui/EventImage';
 import { StaffPanel } from '../../features/organizer/StaffPanel';
 import { formatWhen } from '../../lib/datetime';
 import { strings } from '../../copy/strings';
@@ -70,7 +71,7 @@ function ManagedEvent({ initial }: { initial: Event }) {
     {!!occupancy.error && <ErrorBlock message={friendlyError(occupancy.error)} onRetry={occupancy.retry} />}
     <Tabs<Tab> tabs={[{key:'overview',label:copy.overview},{key:'staff',label:copy.staff},{key:'schedule',label:copy.schedule},{key:'door',label:copy.door}]} active={tab} onChange={setTab} />
     <section className="manage-tab-content" role="tabpanel">
-      {tab === 'overview' && <><dl className="event-facts">
+      {tab === 'overview' && <><div className="event-detail-cover manage-event-cover"><EventImage event={event} eager /></div><dl className="event-facts">
         <dt>{copy.facts.when}</dt><dd>{formatWhen(event.startTime,event.endTime)}</dd>
         <dt>{copy.facts.where}</dt><dd>{event.location}</dd><dt>{copy.facts.category}</dt><dd>{event.category}</dd>
         <dt>{copy.facts.capacity}</dt><dd>{current.capacity}</dd><dt>{copy.facts.door}</dt><dd><DoorStatus event={current} /></dd>

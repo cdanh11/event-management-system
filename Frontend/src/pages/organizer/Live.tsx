@@ -12,6 +12,7 @@ import { ConnectionIndicator } from '../../components/ui/ConnectionIndicator';
 import { EmptyState, ErrorBlock, Skeleton } from '../../components/ui/states';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { StatusDot } from '../../components/ui/Agenda';
+import { EventImage } from '../../components/ui/EventImage';
 import { strings } from '../../copy/strings';
 import { LIVE_STATUSES, preferredLiveEvent, statusLabel } from '../../lib/status';
 import { Button } from '../../components/ui/Button';
@@ -38,7 +39,7 @@ function LiveEvent({ event }: { event: Event }) {
   const percent = capacity > 0 ? Math.min(100, Math.round(count / capacity * 100)) : 0;
   return <>
     <section className="live-board" aria-label={event.title}>
-      <div className="live-board-header"><h2>{event.title}</h2>
+      <div className="live-board-header"><div className="live-event-heading"><EventImage event={event} eager /><h2>{event.title}</h2></div>
         {live ? <div className="live-board-connection"><ConnectionIndicator state={realtime.state} />
           {realtime.state === 'closed' && !realtime.error && <Button variant="secondary" onClick={realtime.retry}>{strings.common.retry}</Button>}</div> : <StatusDot status={status} />}
       </div>
