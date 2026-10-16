@@ -99,7 +99,7 @@ def register(
         event.registered_count += 1
         db.commit()
 
-        # Đọc kiểu nguyên thủy TRƯỚC khi Session đóng — task nền không được chạm ORM.
+        # Chụp dữ liệu thuần sau commit để task không phụ thuộc ORM/Session request.
         attendee_email = user.email
         show_title = event.title
         ticket_code = ticket.ticket_code

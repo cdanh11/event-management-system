@@ -51,6 +51,30 @@ function elements(node, type) {
 }
 const button = (tree, label) => elements(tree, 'Button').find(node => node.props.children === label);
 
+test('cover changes send only the image field and retain the draft after a failed save', async () => {
+  const changed = [], sent = [];
+  let event = { id: 'cover-event', status: 'PUBLISHED', bannerImage: '', title: 'Workshop', category: 'Technology' };
+  const render = component('features/organizer/CoverForm.tsx', {
+    'components/ui/Toast.tsx': { useToast: () => ({ toast() {} }) },
+    'services/services.ts': { eventService: { reschedule: async (id, payload) => {
+      assert.equal(id, event.id); sent.push(payload);
+      if (sent.length === 1) throw new TypeError('Failed to fetch');
+      return { ...event, ...payload };
+    } } },
+  });
+  const props = () => ({ event, onChanged: next => { changed.push(next); event = next; } });
+  elements(render('CoverForm', props()), 'EventCoverField')[0].props.onChange('/images/events/coding.webp');
+  elements(render('CoverForm', props()), 'form')[0].props.onSubmit({ preventDefault() {} }); await tick();
+  let tree = render('CoverForm', props());
+  assert.equal(elements(tree, 'EventCoverField')[0].props.value, '/images/events/coding.webp');
+  assert.equal(changed.length, 0);
+  elements(tree, 'form')[0].props.onSubmit({ preventDefault() {} }); await tick();
+  tree = render('CoverForm', props());
+  assert.equal(changed.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent)), [{ bannerImage: '/images/events/coding.webp' }, { bannerImage: '/images/events/coding.webp' }]);
+  assert.equal(button(tree, 'Save cover').props.disabled, true);
+});
+
 test('Delete draft failure keeps confirmation and event; retry navigates only after success', async () => {
   let fails = true, calls = 0;
   const navigation = [], notices = [];

@@ -1,5 +1,6 @@
 import { strings } from '../../copy/strings';
 import { fieldErrors } from '../../lib/errors';
+import { validEventImage } from '../events/eventImages';
 
 export type ScheduleValues = { startTime: string; endTime: string };
 export type EventFormValues = ScheduleValues & { title: string; description: string; location: string; capacity: string; category: string; bannerImage: string };
@@ -14,7 +15,7 @@ export function scheduleErrors(value: ScheduleValues, now: number) {
   };
 }
 export function validImageUrl(value: string) {
-  try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; }
+  return validEventImage(value);
 }
 export function eventFormErrors(value: EventFormValues, now: number) {
   return {

@@ -32,8 +32,8 @@ function AgendaList({ tab, q, registered, clearSearch, onTicket, busyRegistratio
   };
   return <section className="agenda-list" aria-busy={query.isLoading || query.isRefreshing}>
     {query.error && <ErrorBlock message={friendlyError(query.error)} onRetry={() => void query.refetch()} />}
-    {query.isLoading ? <><Skeleton kind="row" /><Skeleton kind="row" /><Skeleton kind="row" /></>
-      : items.length ? items.map((event) => <AgendaRow key={event.id} event={event} now={now} registration={registered.get(event.id)} onTicket={onTicket} ticketBusy={busyRegistration === registered.get(event.id)?.id} />)
+    {query.isLoading ? <div className="event-catalog-grid"><Skeleton /><Skeleton /><Skeleton /></div>
+      : items.length ? <div className="event-catalog-grid">{items.map((event) => <AgendaRow key={event.id} event={event} now={now} registration={registered.get(event.id)} onTicket={onTicket} ticketBusy={busyRegistration === registered.get(event.id)?.id} />)}</div>
         : !query.error && <EmptyState title={strings.explore.empty} body={strings.explore.emptyBody}
           action={<Button variant="secondary" onClick={clearSearch}>{strings.explore.clearSearch}</Button>} />}
     {query.data?.hasMore && <div className="agenda-more"><Button variant="secondary" loading={query.isRefreshing} onClick={() => void loadMore()}>{strings.explore.loadMore}</Button></div>}

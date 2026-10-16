@@ -11,6 +11,7 @@ import { DoorStatus } from '../../components/ui/DoorStatus';
 import { ConfirmDialog } from '../../components/ui/Modal';
 import { ErrorBlock, Skeleton } from '../../components/ui/states';
 import { OccupancyMeter, StatusDot } from '../../components/ui/Agenda';
+import { EventImage } from '../../components/ui/EventImage';
 import { formatWhen } from '../../lib/datetime';
 import { strings } from '../../copy/strings';
 import { LIVE_STATUSES, registrationAction, statusLabel } from '../../lib/status';
@@ -111,6 +112,7 @@ export function EventDetail() {
     {event.status === 'CANCELLED' && <p className="notice error">{strings.detail.cancelledBanner}</p>}
     <div className="event-detail-layout">
       <section className="event-detail-copy">
+        <div className="event-detail-cover"><EventImage event={event} eager /></div>
         <h1>{event.title}</h1><p className="event-category">{event.category}</p><StatusDot status={event.status} />
         <div className="event-mobile-facts"><p>{formatWhen(event.startTime,event.endTime)}</p><p>{event.location}</p></div>
         <h2>{strings.detail.about}</h2><p className="event-description">{event.description}</p>

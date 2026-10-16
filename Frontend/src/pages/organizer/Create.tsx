@@ -5,6 +5,7 @@ import { useToast } from '../../components/ui/Toast';
 import { eventService } from '../../services/services';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
+import { EventCoverField } from '../../components/ui/EventCoverField';
 import { Field, Input, Select, Textarea } from '../../components/ui/forms';
 import { strings } from '../../copy/strings';
 import { toInputValue, fromInputValue } from '../../lib/datetime';
@@ -74,6 +75,7 @@ export function Create() {
             <Field label={copy.location} error={show('location')}><Input value={form.location} onChange={e => change('location',e.target.value)} onBlur={() => touch('location')} required /></Field>
             <Field label={copy.capacity} error={show('capacity')}><Input type="number" min={1} step={1} value={form.capacity} onChange={e => change('capacity',e.target.value)} onBlur={() => touch('capacity')} required /></Field>
           </section>
+          <EventCoverField value={form.bannerImage} title={form.title} category={form.category} error={show('bannerImage')} onChange={value => { change('bannerImage', value); touch('bannerImage'); }} />
         </fieldset>
         {error && <p className="notice error" role="alert">{error}</p>}
         <div className="form-actions"><Button type="submit" loading={busy}>{copy.create}</Button><Link className="quiet-link" to="/organizer/events">{strings.common.cancel}</Link></div>

@@ -1,0 +1,42 @@
+[
+  {
+    "file": "coding.webp",
+    "source": "https://unsplash.com/s/photos/laptop-code",
+    "download": "https://images.unsplash.com/photo-1555066931-bf19f8fd1085?w=1200&q=78&fm=webp&fit=max",
+    "bytes": 74846,
+    "license": "https://unsplash.com/license",
+    "retrieved": "2026-10-16"
+  },
+  {
+    "file": "workshop.webp",
+    "source": "https://unsplash.com/s/photos/people-working",
+    "download": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=78&fm=webp&fit=max",
+    "bytes": 138464,
+    "license": "https://unsplash.com/license",
+    "retrieved": "2026-10-16"
+  },
+  {
+    "file": "workspace.webp",
+    "source": "https://unsplash.com/photos/m_HRfLhgABo",
+    "download": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&q=78&fm=webp&fit=max",
+    "bytes": 101574,
+    "license": "https://unsplash.com/license",
+    "retrieved": "2026-10-16"
+  },
+  {
+    "file": "infrastructure.webp",
+    "source": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31",
+    "download": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=78&fm=webp&fit=max",
+    "bytes": 223536,
+    "license": "https://unsplash.com/license",
+    "retrieved": "2026-10-16"
+  },
+  {
+    "file": "conference.webp",
+    "source": "https://images.unsplash.com/photo-1505373877841-8d25f7d46678",
+    "download": "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1200&q=78&fm=webp&fit=max",
+    "bytes": 175146,
+    "license": "https://unsplash.com/license",
+    "retrieved": "2026-10-16"
+  }
+]
