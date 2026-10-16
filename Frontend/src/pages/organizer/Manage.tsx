@@ -14,6 +14,7 @@ import { Tabs } from '../../components/ui/Tabs';
 import { DoorWorkspace } from '../../features/door/DoorDesk';
 import { ManageActions } from '../../features/organizer/ManageActions';
 import { ScheduleForm } from '../../features/organizer/ScheduleForm';
+import { CoverForm } from '../../features/organizer/CoverForm';
 import { StaffPanel } from '../../features/organizer/StaffPanel';
 import { formatWhen } from '../../lib/datetime';
 import { strings } from '../../copy/strings';
@@ -73,7 +74,7 @@ function ManagedEvent({ initial }: { initial: Event }) {
         <dt>{copy.facts.when}</dt><dd>{formatWhen(event.startTime,event.endTime)}</dd>
         <dt>{copy.facts.where}</dt><dd>{event.location}</dd><dt>{copy.facts.category}</dt><dd>{event.category}</dd>
         <dt>{copy.facts.capacity}</dt><dd>{current.capacity}</dd><dt>{copy.facts.door}</dt><dd><DoorStatus event={current} /></dd>
-      </dl><p className="event-description">{event.description}</p></>}
+      </dl><p className="event-description">{event.description}</p><CoverForm key={event.id} event={event} onChanged={changed} /></>}
       {tab === 'staff' && <StaffPanel key={event.id} eventId={event.id} />}
       {tab === 'schedule' && <ScheduleForm key={event.id} event={current} onChanged={changed} />}
       {tab === 'door' && user && <DoorWorkspace event={current} user={user} recheck={recheck} />}
