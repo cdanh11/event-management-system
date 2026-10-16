@@ -5,6 +5,7 @@ import { statusLabel, statusColor, registrationOpen, registrationAction } from '
 import { formatTime } from '../../lib/datetime';
 import { strings } from '../../copy/strings';
 import { Countdown } from './Countdown';
+import { EventImage } from './EventImage';
 
 export function DateBlock({ value }: { value: string }) {
   const date = new Date(value);
@@ -36,12 +37,13 @@ export function OccupancyMeter({ count, capacity, status, label: customLabel }: 
 export function AgendaRow({ event, now, registration, onTicket, ticketBusy }: { event: Event; now: number; registration?: Registration; onTicket: (registration: Registration) => void; ticketBusy: boolean }) {
   const open = registrationOpen(event, now);
   const action = registrationAction(event, 'ATTENDEE', registration, now);
-  return <article className={`agenda-row agenda-row-${event.status.toLowerCase()}`} style={{ borderLeftColor: statusColor(event.status) }}>
-    <DateBlock value={event.startTime} />
+  return <article className={`event-card event-card-${event.status.toLowerCase()}`} style={{ '--event-status-color': statusColor(event.status) } as CSSProperties}>
+    <EventImage event={event} />
+    <div className="event-card-body">
+    <div className="event-card-meta"><span>{event.category}</span><StatusDot status={event.status} /></div>
     <div className="agenda-description">
-      <h2><Link className="agenda-event-link" to={`/events/${event.id}`}>{event.title}</Link></h2>
-      <p>{event.location}</p><small>{formatTime(event.startTime)}</small>
-      {event.status !== 'PUBLISHED' && <StatusDot status={event.status} />}
+      <h2><Link className="agenda-event-link" title={event.title} to={`/events/${event.id}`}>{event.title}</Link></h2>
+      <p>{event.location}</p><time dateTime={event.startTime}>{new Date(event.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {formatTime(event.startTime)}</time>
     </div>
     <OccupancyMeter count={event.registeredCount} capacity={event.capacity} status={event.status} />
     <div className="agenda-action">
@@ -50,6 +52,7 @@ export function AgendaRow({ event, now, registration, onTicket, ticketBusy }: { 
         : action === 'register'
           ? <Link className="btn btn-secondary" to={`/events/${event.id}`}>{strings.detail.register}</Link>
           : event.status === 'PUBLISHED' && !open ? <small>{strings.explore.closed}</small> : null}
+    </div>
     </div>
   </article>;
 }

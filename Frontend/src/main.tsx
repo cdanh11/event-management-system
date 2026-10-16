@@ -9,6 +9,7 @@ import './styles/attendee.css';
 import './styles/operations.css';
 import './styles/auth.css';
 import './styles/organizer.css';
+import './styles/event-covers.css';
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter><AuthProvider><App /></AuthProvider></BrowserRouter>,

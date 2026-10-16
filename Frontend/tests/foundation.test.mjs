@@ -18,7 +18,7 @@ function load(relative, overrides = {}) {
     return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
   };
   const context = vm.createContext({
-    Date, Intl, URLSearchParams, Headers, AbortController, DOMException, Event,
+    Date, Intl, URL, URLSearchParams, Headers, AbortController, DOMException, Event,
     localStorage: storage(), sessionStorage: storage(),
     window: { dispatchEvent() {} },
     setTimeout, clearTimeout, setInterval, clearInterval,
@@ -39,6 +39,24 @@ function load(relative, overrides = {}) {
 
 function response(status, body) { return { status, ok: status < 400, json: async () => body }; }
 const nextTick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('event covers preserve valid URLs, reject unsafe inputs and match existing event topics', () => {
+  const { EVENT_COVERS, validEventImage, fallbackEventImage } = load('features/events/eventImages.ts');
+  for (const cover of EVENT_COVERS) {
+    assert.equal(validEventImage(cover.value), true);
+    assert.equal(fs.existsSync(path.resolve(root, '../public', cover.value.slice(1))), true);
+  }
+  assert.equal(validEventImage('https://example.com/photo.jpg'), true);
+  for (const value of ['javascript:alert(1)', 'data:image/png;base64,x', '//example.com/a.jpg', '/images/../secret', 'https://user:pass@example.com/a.jpg', 'https://example.com/' + 'x'.repeat(500)]) {
+    assert.equal(validEventImage(value), false);
+  }
+  const source = title => fallbackEventImage({ title, category: 'Technology' });
+  assert.match(source('PostgreSQL Transaction Workshop'), /infrastructure/);
+  assert.match(source('WebSocket Realtime Meetup'), /conference/);
+  assert.match(source('Git Collaboration Workshop'), /workshop/);
+  assert.match(source('Pydantic Validation Clinic'), /workspace/);
+  assert.match(source('Python Async I/O Lab'), /coding/);
+});
 
 test('shared event range distinguishes same day, multiple days and a different year', () => {
   const { formatWhen } = load('lib/datetime.ts');
