@@ -8,7 +8,8 @@ import { friendlyError } from '../../lib/errors';
 import { formatRange } from '../../lib/datetime';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Field, Select } from '../../components/ui/forms';
-import { StatusDot } from '../../components/ui/Agenda';
+import { OccupancyMeter, StatusDot } from '../../components/ui/Agenda';
+import { EventImage } from '../../components/ui/EventImage';
 import { EmptyState, ErrorBlock, Skeleton } from '../../components/ui/states';
 import { strings } from '../../copy/strings';
 
@@ -25,6 +26,19 @@ export function CheckinDesk() {
     {events.error && <ErrorBlock message={friendlyError(events.error)} onRetry={() => void events.refetch()} />}
     {events.isLoading ? <><Skeleton kind="row" /><Skeleton kind="row" /></>
       : active && user ? <>
+        <section className="event-catalog-grid staff-event-grid" aria-label={strings.staff.picker}>
+          {events.data?.map(event => <article key={event.id} className={`event-card staff-event-card${event.id === active.id ? ' is-selected' : ''}`}>
+            <EventImage event={event} />
+            <div className="event-card-body">
+              <div className="event-card-meta"><span>{event.category}</span><StatusDot status={event.status} /></div>
+              <div className="agenda-description">
+                <h2><button className="event-card-select" type="button" title={event.title} aria-pressed={event.id === active.id} disabled={scanning} onClick={() => setSelected(event.id)}>{event.title}</button></h2>
+                <p>{event.location}</p><time dateTime={event.startTime}>{formatRange(event.startTime, event.endTime)}</time>
+              </div>
+              <OccupancyMeter count={event.registeredCount} capacity={event.capacity} status={event.status} />
+            </div>
+          </article>)}
+        </section>
         <div className="door-picker">
           <Field label={strings.staff.picker}><Select value={active.id} disabled={scanning} onChange={(e) => setSelected(e.target.value)}>
             {events.data?.map((event) => <option key={event.id} value={event.id}>{event.title} — {statusLabel(event.status)}</option>)}

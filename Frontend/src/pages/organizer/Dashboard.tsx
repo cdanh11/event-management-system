@@ -44,11 +44,11 @@ export function Dashboard() {
       {events.length ? <>
         <section><div className="section-title"><h2>{copy.needsAttention}</h2></div>
           {staff.error && <ErrorBlock message={friendlyError(staff.error)} onRetry={() => void staff.refetch()} />}
-          {attention.length ? attention.slice(0,5).map(row => <OrganizerAgenda key={row.event.id} {...row} />) : <p className="hint">{copy.noAttention}</p>}
+          {attention.length ? <div className="event-catalog-grid">{attention.slice(0,5).map(row => <OrganizerAgenda key={row.event.id} {...row} />)}</div> : <p className="hint">{copy.noAttention}</p>}
           <Link className="quiet-link" to="/organizer/events">{copy.allEvents}</Link>
         </section>
         <section><div className="section-title"><h2>{copy.nextEvents}</h2><Link to="/organizer/events">{copy.eventsTitle}</Link></div>
-          {next.map(event => <OrganizerAgenda key={event.id} event={event} />)}
+          <div className="event-catalog-grid">{next.map(event => <OrganizerAgenda key={event.id} event={event} />)}</div>
         </section>
       </> : <EmptyState title={copy.empty} body={copy.emptyBody} />}
     </>}

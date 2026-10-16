@@ -40,9 +40,9 @@ export function Events() {
       </Select>
     </section>
     {query.error && <ErrorBlock message={friendlyError(query.error)} onRetry={() => void query.refetch()} />}
-    {query.isLoading ? <><Skeleton kind="row" /><Skeleton kind="row" /><Skeleton kind="row" /></> : query.data && <section>
+    {query.isLoading ? <div className="event-catalog-grid"><Skeleton /><Skeleton /><Skeleton /></div> : query.data && <section>
       <div className="section-title"><h2>{copy.eventCount(query.data.total)}</h2></div>
-      {rows.length ? rows.map(event => <OrganizerAgenda key={event.id} event={event} />) : <EmptyState title={strings.common.noResults} action={<Button variant="secondary" onClick={() => {setParams({}, { replace: true });setPage(0);}}>{strings.common.clearFilters}</Button>} />}
+      {rows.length ? <div className="event-catalog-grid">{rows.map(event => <OrganizerAgenda key={event.id} event={event} />)}</div> : <EmptyState title={strings.common.noResults} action={<Button variant="secondary" onClick={() => {setParams({}, { replace: true });setPage(0);}}>{strings.common.clearFilters}</Button>} />}
       {(page > 0 || query.data.has_more) && <div className="agenda-more">
         <Button variant="secondary" disabled={page === 0 || query.isRefreshing} onClick={() => setPage(before => before - 1)}>{copy.previousPage}</Button>
         <span>{copy.pageNumber(page + 1)}</span>
