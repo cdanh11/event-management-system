@@ -16,7 +16,7 @@ import re
 
 from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator, model_validator
 
-from .models import as_local_naive
+from .timeutils import event_utc
 
 
 class EventStatus(str, Enum):
@@ -53,10 +53,12 @@ class ValidationErrorOut(ApiErrorOut):
 # --- Swagger error contract dùng chung (Phase 1) ---------------------------
 # Runtime đã trả body chuẩn {status, code, message} qua exception handler;
 # khai báo ở đây để Swagger mô tả đúng error contract từng endpoint.
-ERROR_401 = {"model": ApiErrorOut, "description": "Thiếu token hoặc token sai/hết hạn."}
+ERROR_400 = {"model": ApiErrorOut, "description": "Dữ liệu hoặc thao tác không hợp lệ theo quy tắc nghiệp vụ."}
+ERROR_401 = {"model": ApiErrorOut, "description": "Thiếu thông tin xác thực hoặc thông tin xác thực sai/hết hạn."}
 ERROR_403 = {"model": ApiErrorOut, "description": "Sai role hoặc không sở hữu tài nguyên."}
 ERROR_404 = {"model": ApiErrorOut, "description": "Tài nguyên không tồn tại."}
 ERROR_409 = {"model": ApiErrorOut, "description": "Xung đột nghiệp vụ (trùng/full)."}
+ERROR_502 = {"model": ApiErrorOut, "description": "Dịch vụ gửi thông báo không khả dụng."}
 AUTH_RESPONSES = {401: ERROR_401, 403: ERROR_403}
 
 
@@ -133,8 +135,7 @@ class EventIn(BaseModel):
     @field_validator("start_time", "end_time")
     @classmethod
     def normalize_event_time(cls, value: datetime) -> datetime:
-        # Cột DB là DateTime không timezone: chuẩn hóa trước cả validation và lưu.
-        return as_local_naive(value)
+        return event_utc(value)
 
     @model_validator(mode="after")
     def _check_time_order(self):
@@ -167,7 +168,7 @@ class EventUpdateIn(BaseModel):
     @field_validator("start_time", "end_time")
     @classmethod
     def normalize_event_time(cls, value: datetime | None) -> datetime | None:
-        return as_local_naive(value) if value is not None else None
+        return event_utc(value) if value is not None else None
 
     @model_validator(mode="after")
     def _check_time_order(self):

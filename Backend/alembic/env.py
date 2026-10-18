@@ -25,6 +25,16 @@ def run_migrations_offline():
     with context.begin_transaction():
         context.run_migrations()
 def run_migrations_online():
+    # Integration tests supply an isolated connection/schema explicitly.
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        context.configure(
+            connection=supplied_connection, target_metadata=target_metadata,
+            version_table_schema=config.attributes.get("version_table_schema"),
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
         prefix="sqlalchemy.", poolclass=pool.NullPool,

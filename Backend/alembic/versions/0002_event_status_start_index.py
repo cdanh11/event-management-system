@@ -11,8 +11,8 @@ depends_on = None
 
 
 def upgrade():
-    # 0001 dùng Base.metadata.create_all nên DB tạo mới đã có index này
-    # từ models; if_not_exists giữ 0002 chạy được cho cả DB mới lẫn DB cũ.
+    # 0001 là snapshot schema cố định. if_not_exists tương thích cả database
+    # cũ từng được tạo trực tiếp bằng ORM trước khi có migration.
     op.create_index(
         "ix_events_status_start_time", "events", ["status", "start_time"],
         if_not_exists=True,

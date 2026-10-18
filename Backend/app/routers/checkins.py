@@ -19,13 +19,13 @@ from ..db import get_db
 from ..deps import require
 from ..errors import api_error
 from ..models import Checkin, Event, Registration, StaffEventAssignment, Ticket, User
-from ..schemas import CheckinIn, CheckinOut
+from ..schemas import AUTH_RESPONSES, ERROR_400, ERROR_404, ERROR_409, CheckinIn, CheckinOut
 from ..serializers import to_checkin
 
-router = APIRouter()
+router = APIRouter(responses=AUTH_RESPONSES)
 
 
-@router.post("/checkins", response_model=CheckinOut, status_code=201, tags=["checkins"])
+@router.post("/checkins", response_model=CheckinOut, status_code=201, tags=["checkins"], responses={400: ERROR_400, 404: ERROR_404, 409: ERROR_409})
 def checkin(
     payload: CheckinIn,
     user: User = Depends(require("STAFF", "ORGANIZER")),
@@ -39,6 +39,8 @@ def checkin(
         api_error(404, "INVALID_TICKET", "Invalid ticket")
     reg = db.get(Registration, ticket.registration_id)
     # Khóa event trước ticket để cùng thứ tự với hủy đăng ký/chuyển trạng thái.
+    # Trade-off MVP: các check-in cùng event bị tuần tự hóa trong transaction
+    # ngắn. Bỏ khóa này cần thiết kế lại race với đóng cửa, không chỉ khóa vé.
     event = db.scalar(select(Event).where(Event.id == reg.event_id).with_for_update())
     if payload.event_id is not None and payload.event_id != event.id:
         api_error(400, "WRONG_EVENT", "Ticket does not belong to the selected event")

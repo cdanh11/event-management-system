@@ -11,7 +11,8 @@ from dataclasses import dataclass
 import httpx
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
+from uuid import UUID
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -20,8 +21,10 @@ from ..errors import api_error
 from ..models import Event, Registration, User
 from ..schemas import (
     AUTH_RESPONSES,
+    ERROR_400,
     ERROR_404,
     ERROR_409,
+    ERROR_502,
     EventIn,
     EventOut,
     EventStatus,
@@ -31,6 +34,8 @@ from ..schemas import (
 )
 from ..realtime import manager, occupancy_payload
 from ..serializers import to_event
+from ..timeutils import utc_now
+from ..cursors import decode_event_cursor, encode_event_cursor
 from ..services.notifier import NotificationError, notification_mode, notify_attendees, notify_in_background
 
 router = APIRouter()
@@ -54,10 +59,9 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
 def _validate_event_time(start: datetime, end: datetime) -> None:
     """Kiểm tra thời gian sự kiện: bắt đầu phải ở tương lai và trước thời điểm kết thúc.
 
-    Hỗ trợ cả datetime có hoặc không có timezone: nếu ``start`` là naive thì
-    ``now`` cũng dùng naive (datetime.now()), tránh lỗi so trộn "naive/aware".
+    Pydantic và EventDateTime đã chuẩn hóa các mốc event về UTC-aware.
     """
-    now = datetime.now() if start.tzinfo is None else datetime.now(start.tzinfo)
+    now = utc_now()
     if start >= end or start <= now:
         api_error(
             400,
@@ -108,22 +112,22 @@ def _notification_target(
     )
 
 
-@router.get("/events", response_model=list[EventOut], tags=["events"])
+@router.get("/events", response_model=list[EventOut], tags=["events"], responses={400: ERROR_400, 404: ERROR_404})
 def list_events(
     status: EventStatus | None = None,
     q: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    cursor: str | None = Query(default=None),
+    cursor: str | None = Query(default=None, max_length=1024),
     response: Response = None,  # type: ignore[assignment]  # FastAPI inject Response
     db: Session = Depends(get_db),
 ):
     """Danh sách sự kiện: lọc status, tìm title, phân trang offset hoặc cursor.
 
     - Mặc định offset (giữ tương thích FE Phase 1).
-    - Phase 2 cursor (keyset theo ``(start_time, id)``): truyền ``cursor=<id event
-      cuối trang trước>``, server trả trang tiếp theo + header ``X-Next-Cursor``
-      (rỗng khi hết). Cursor và offset không dùng chung.
+    - Cursor mới mã hóa cặp (UTC start_time, id), không phải truy vấn lại anchor.
+      Truyền nguyên header X-Next-Cursor vào request kế tiếp. UUID cũ vẫn được
+      nhận để tương thích client cũ; chỉ dạng cũ có thể CURSOR_NOT_FOUND.
     """
     if cursor is not None and offset != 0:
         api_error(400, "CURSOR_OFFSET_CONFLICT", "Use either cursor or offset, not both")
@@ -135,24 +139,30 @@ def list_events(
         stmt = stmt.where(Event.title.ilike(f"%{q}%"))
 
     if cursor is not None:
-        anchor = db.get(Event, cursor)
-        if anchor is None:
-            api_error(404, "CURSOR_NOT_FOUND", "Cursor event not found")
-        stmt = stmt.where(
-            (Event.start_time > anchor.start_time)
-            | ((Event.start_time == anchor.start_time) & (Event.id > anchor.id))
-        )
+        try:
+            UUID(cursor)
+        except ValueError:
+            try:
+                anchor_time, anchor_id = decode_event_cursor(cursor)
+            except ValueError:
+                api_error(400, "INVALID_CURSOR", "Cursor is invalid or unsupported")
+        else:
+            anchor = db.get(Event, cursor)
+            if anchor is None:
+                api_error(404, "CURSOR_NOT_FOUND", "Cursor event not found")
+            anchor_time, anchor_id = anchor.start_time, anchor.id
+        stmt = stmt.where(tuple_(Event.start_time, Event.id) > (anchor_time, anchor_id))
         stmt = stmt.order_by(Event.start_time, Event.id).limit(limit)
     else:
         stmt = stmt.order_by(Event.start_time, Event.id).offset(offset).limit(limit)
 
     rows = db.scalars(stmt).all()
     if response is not None:
-        response.headers["X-Next-Cursor"] = rows[-1].id if len(rows) == limit else ""
+        response.headers["X-Next-Cursor"] = encode_event_cursor(rows[-1].start_time, rows[-1].id) if len(rows) == limit else ""
     return [to_event(e) for e in rows]
 
 
-@router.get("/events/{event_id}", response_model=EventOut, tags=["events"])
+@router.get("/events/{event_id}", response_model=EventOut, tags=["events"], responses={404: ERROR_404})
 def get_event(event_id: str, db: Session = Depends(get_db)):
     """Chi tiết một sự kiện."""
     event = db.get(Event, event_id)
@@ -166,7 +176,7 @@ def get_event(event_id: str, db: Session = Depends(get_db)):
     response_model=EventOut,
     status_code=201,
     tags=["events"],
-    responses={**AUTH_RESPONSES},
+    responses={**AUTH_RESPONSES, 400: ERROR_400},
 )
 def create_event(
     payload: EventIn,
@@ -190,7 +200,7 @@ def create_event(
     "/events/{event_id}",
     response_model=EventOut,
     tags=["events"],
-    responses={**AUTH_RESPONSES, 404: ERROR_404},
+    responses={**AUTH_RESPONSES, 400: ERROR_400, 404: ERROR_404, 409: ERROR_409},
 )
 def reschedule_event(
     event_id: str,
@@ -237,7 +247,7 @@ def reschedule_event(
     "/events/{event_id}",
     status_code=204,
     tags=["events"],
-    responses={**AUTH_RESPONSES, 404: ERROR_404},
+    responses={**AUTH_RESPONSES, 400: ERROR_400, 404: ERROR_404},
 )
 def delete_event(
     event_id: str,
@@ -271,7 +281,7 @@ def delete_event(
     "/events/{event_id}/transition",
     response_model=EventOut,
     tags=["events"],
-    responses={**AUTH_RESPONSES, 404: ERROR_404},
+    responses={**AUTH_RESPONSES, 400: ERROR_400, 404: ERROR_404},
 )
 def transition_event(
     event_id: str,
@@ -322,7 +332,7 @@ def transition_event(
     "/events/{event_id}/notify",
     response_model=NotifyOut,
     tags=["events"],
-    responses={**AUTH_RESPONSES, 404: ERROR_404},
+    responses={**AUTH_RESPONSES, 404: ERROR_404, 502: ERROR_502},
 )
 async def notify_event_now(
     target: NotificationTarget = Depends(_notification_target),
