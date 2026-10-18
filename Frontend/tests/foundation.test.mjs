@@ -37,7 +37,7 @@ function load(relative, overrides = {}) {
   return moduleAt(path.resolve(root, relative));
 }
 
-function response(status, body) { return { status, ok: status < 400, json: async () => body }; }
+function response(status, body, headers = {}) { return { status, ok: status < 400, headers: new Headers(headers), json: async () => body }; }
 const nextTick = () => new Promise(resolve => setTimeout(resolve, 0));
 
 test('event covers preserve valid URLs, reject unsafe inputs and match existing event topics', () => {
@@ -116,13 +116,14 @@ test('overview reports concurrent reasons and checks staff for at most five acti
   assert.equal(priorityEvent(events, now).id, 'door');
 });
 
-test('event wall-clock and UTC check-in timestamps remain distinct; form round-trip stays 09:00', () => {
+test('event UTC instants round-trip through local forms without losing their offset', () => {
   const dates = load('lib/datetime.ts');
   const event = dates.parseEventDate('2026-10-23T09:00:00');
   assert.equal(event.getHours(), 9);
   assert.equal(dates.parseApiDate('2026-10-23T02:00:00').getHours(), 9);
   assert.equal(dates.toInputValue(event.toISOString()), '2026-10-23T09:00');
-  assert.equal(dates.toEventPayloadDate(dates.fromInputValue('2026-10-23T09:00')), '2026-10-23T09:00');
+  assert.equal(dates.toEventPayloadDate(dates.fromInputValue('2026-10-23T09:00')), '2026-10-23T02:00:00.000Z');
+  assert.equal(dates.parseEventDate('2026-10-23T02:00:00Z').getHours(), 9);
   assert.equal(dates.parseApiDate('2026-10-23T09:00:00+07:00').toISOString(), '2026-10-23T02:00:00.000Z');
 });
 
@@ -175,14 +176,14 @@ test('refresh failure clears auth and broadcasts session end', async () => {
   assert.equal(ended, 1);
 });
 
-test('event pagination sends search, status and last-row cursor without offset', async () => {
+test('event pagination preserves the opaque server cursor with search and status', async () => {
   const urls = [];
   const services = load('services/services.ts', { fetch: async url => {
     urls.push(url);
-    return response(200, [{ id: 'last-row', start_time: '2026-10-23T09:00:00', end_time: '2026-10-23T11:00:00' }]);
+    return response(200, [{ id: 'last-row', start_time: '2026-10-23T02:00:00Z', end_time: '2026-10-23T04:00:00Z' }], {'X-Next-Cursor':'opaque-next-cursor'});
   } });
   const page = await services.eventService.list({ q: 'Design', status: 'PUBLISHED', limit: 1, cursor: 'previous' });
-  assert.equal(page.nextCursor, 'last-row');
+  assert.equal(page.nextCursor, 'opaque-next-cursor');
   assert.match(urls[0], /q=Design/);
   assert.match(urls[0], /status=PUBLISHED/);
   assert.match(urls[0], /cursor=previous/);
@@ -282,14 +283,14 @@ test('agenda search uses server filters and independent cursors for both active 
     return response(200, Array.from({ length: second ? 1 : 20 }, (_, i) => ({
       id: `${status}-${second ? 20 : i}`, organizer_id: 'owner', status, title: 'Meetup',
       start_time: '2026-10-23T09:00:00', end_time: '2026-10-23T12:00:00', capacity: 50, registered_count: 10,
-    })));
+    })), second ? {} : {'X-Next-Cursor':`${status}-next`});
   }, URL });
   const page = await loadAgenda('happening', 'Meetup', 2, new AbortController().signal);
   assert.equal(page.items.length, 42);
   assert.equal(page.hasMore, false);
   assert.equal(calls.length, 4);
   assert.ok(calls.every(params => params.get('q') === 'Meetup' && !params.has('offset')));
-  assert.deepEqual(calls.filter(params => params.has('cursor')).map(params => params.get('cursor')).sort(), ['ONGOING-19', 'STARTED-19']);
+  assert.deepEqual(calls.filter(params => params.has('cursor')).map(params => params.get('cursor')).sort(), ['ONGOING-next', 'STARTED-next']);
 });
 
 test('agenda hides expired registration and detail keeps existing tickets after completion', () => {

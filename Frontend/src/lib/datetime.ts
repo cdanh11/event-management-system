@@ -11,8 +11,8 @@ export function parseUtc(value: string): Date {
 
 export const parseApiDate = parseUtc;
 
-// Local backend stores event start/end as server wall-clock (models.localnow).
-// Unlike audit timestamps, naive EVENT dates must not be reinterpreted as UTC.
+// Current API returns event times with an explicit UTC offset. Keep naive input
+// parsing for older cached responses; newly submitted values always include Z.
 export function parseEventDate(value: string): Date {
   return new Date(value);
 }
@@ -27,9 +27,9 @@ export function fromInputValue(value: string): string {
   return new Date(value).toISOString();
 }
 
-// Sending naive local event time matches this backend's wall-clock contract.
+// Preserve the instant, including the browser timezone, when sending to the API.
 export function toEventPayloadDate(value: string): string {
-  return toInputValue(parseEventDate(value));
+  return parseEventDate(value).toISOString();
 }
 
 export function formatDay(value: string): string {

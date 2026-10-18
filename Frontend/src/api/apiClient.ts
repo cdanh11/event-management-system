@@ -55,7 +55,8 @@ async function refresh() {
 export async function request<T>(
   path: string,
   init: RequestInit = {},
-  retry = true
+  retry = true,
+  onResponse?: (response: Response) => void
 ): Promise<T> {
   const headers = new Headers(init.headers);
   const sentToken = accessToken;
@@ -93,6 +94,7 @@ export async function request<T>(
     throw error;
   }
 
+  onResponse?.(response);
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>);

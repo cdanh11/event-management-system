@@ -126,8 +126,11 @@ export const eventService = {
     if (q?.trim()) params.set('q', q.trim());
     if (status) params.set('status', status);
     if (cursor) params.set('cursor', cursor);
-    const items = (await request<ApiEvent[]>(`/events?${params}`, { signal })).map(event);
-    return { items, nextCursor: items.length === limit ? items.at(-1)?.id : undefined };
+    let nextCursor: string | undefined;
+    const items = (await request<ApiEvent[]>(`/events?${params}`, { signal }, true, response => {
+      nextCursor = response.headers.get('X-Next-Cursor') || undefined;
+    })).map(event);
+    return { items, nextCursor };
   },
   getEvents: async (limit = 20, offset = 0, opts: { status?: string; q?: string } = {}) => {
     const params = new URLSearchParams({
