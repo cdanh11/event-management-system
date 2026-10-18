@@ -1,174 +1,182 @@
-"""Concurrency test FOR UPDATE trên PostgreSQL thật (Phase 2).
+"""Controlled PostgreSQL races; never run against the application database.
 
-SQLite không có row lock nên test này bỏ qua mặc định. Chạy tay:
-
-    TEST_POSTGRES_URL=postgresql+psycopg://evently:evently@localhost:5433/evently \\
-        python -m pytest tests/test_concurrency_pg.py -q
-
-Kịch bản: event capacity=1, 5 attendee đăng ký đồng thời -> đúng 1 vé
-201, 4 vé còn lại 409 (chứng minh with_for_update + unique hoạt động).
+Set TEST_POSTGRES_URL to a separate *_test or *_audit database. The main test
+observes actual PostgreSQL lock waits, rather than hoping thread starts overlap.
+The unlocked control demonstrates lost updates: five tickets, counter still 1.
 """
-
 import os
 import threading
+import time
 import uuid
-from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import sessionmaker
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import User
+from app.models import Checkin, Event, RefreshToken, Registration, StaffEventAssignment, Ticket, User
 from app.security import hash_password
+from app.timeutils import utc_now
 
 PG_URL = os.getenv("TEST_POSTGRES_URL")
-needs_pg = pytest.mark.skipif(not PG_URL, reason="cần TEST_POSTGRES_URL (PostgreSQL thật)")
+needs_pg = pytest.mark.skipif(not PG_URL, reason="requires a separate TEST_POSTGRES_URL")
 
 
-def _payload():
-    return {
-        "title": "Race",
-        "description": "Concurrency demo",
-        "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=5)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=5, hours=2)).isoformat(),
-        "capacity": 1,
-        "category": "Test",
-        "banner_image": "https://example.com/b.png",
-    }
-
-
-@needs_pg
-def test_concurrent_register_capacity_one(monkeypatch):
-    assert make_url(PG_URL).database != "evently", "Dùng database kiểm thử riêng, không dùng DB demo evently"
-    engine = create_engine(PG_URL)
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    import app.services.lifecycle as lifecycle
-    real_sweep = lifecycle.sweep_due_events
-    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(Session))
-
-    def override_get_db():
-        session = Session()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    # Email duy nhất mỗi lần chạy để test idempotent (chạy lại không trùng).
-    tag = uuid.uuid4().hex[:8]
-    org_email = f"org-{tag}@demo.com"
-    att_emails = [f"att{i}-{tag}@demo.com" for i in range(5)]
-    try:
-        with TestClient(app) as client:
-            # Seed: 1 organizer + 5 attendee trực tiếp vào PG.
-            db = Session()
-            try:
-                org = User(name="Org", email=org_email, role="ORGANIZER",
-                           avatar_url="", password_hash=hash_password("123456"))
-                db.add(org)
-                attendees = []
-                for i in range(5):
-                    u = User(name=f"Att{i}", email=att_emails[i], role="ATTENDEE",
-                             avatar_url="", password_hash=hash_password("123456"))
-                    db.add(u)
-                    attendees.append(u)
-                db.commit()
-            finally:
-                db.close()
-
-            def login(email):
-                r = client.post("/auth/login", json={"email": email, "password": "123456"})
-                assert r.status_code == 200, r.text
-                return {"Authorization": f"Bearer {r.json()['access_token']}"}
-
-            org_h = login(org_email)
-            att_h = [login(e) for e in att_emails]
-
-            event_id = client.post("/events", json=_payload(), headers=org_h).json()["id"]
-            client.post(f"/events/{event_id}/transition",
-                        json={"status": "PUBLISHED"}, headers=org_h)
-
-            results: list[int] = []
-
-            def race(headers):
-                # Dùng chung portal của app; không mở 5 lifespan/sweeper riêng.
-                r = client.post(f"/events/{event_id}/register", headers=headers)
-                results.append(r.status_code)
-
-            threads = [threading.Thread(target=race, args=(h,)) for h in att_h]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
-
-            assert sorted(results) == [201, 409, 409, 409, 409]
-            assert client.get(f"/events/{event_id}").json()["registered_count"] == 1
-
-    finally:
-        # Dọn theo email UUID của riêng lần chạy, kể cả assertion thất bại.
-        from sqlalchemy import delete, select
-        from app.models import Event, Registration, RefreshToken, Ticket
-
-        app.dependency_overrides.clear()
-        with Session.begin() as db:
-            user_ids = select(User.id).where(User.email.in_([org_email] + att_emails))
-            event_ids = select(Event.id).where(Event.organizer_id.in_(user_ids))
-            reg_ids = select(Registration.id).where(Registration.event_id.in_(event_ids))
-            db.execute(delete(Ticket).where(Ticket.registration_id.in_(reg_ids)))
-            db.execute(delete(Registration).where(Registration.event_id.in_(event_ids)))
-            db.execute(delete(Event).where(Event.organizer_id.in_(user_ids)))
-            db.execute(delete(RefreshToken).where(RefreshToken.user_id.in_(user_ids)))
-            db.execute(delete(User).where(User.email.in_([org_email] + att_emails)))
-        engine.dispose()
-
-
-@needs_pg
-def test_refresh_token_can_only_rotate_once_under_race(monkeypatch):
-    """Hai request dùng cùng cookie: FOR UPDATE cho đúng một lần refresh thành công."""
-    from concurrent.futures import ThreadPoolExecutor
-    from sqlalchemy import delete
-    from app.models import RefreshToken
-
-    assert make_url(PG_URL).database != "evently", "Dùng database kiểm thử riêng"
+@pytest.fixture
+def pg_app(monkeypatch):
+    url = make_url(PG_URL)
+    assert url.get_backend_name() == "postgresql" and (url.database or "").endswith(("_test", "_audit"))
     engine = create_engine(PG_URL)
     Base.metadata.create_all(engine)
-    sessions = sessionmaker(bind=engine)
-    import app.services.lifecycle as lifecycle
-    real_sweep = lifecycle.sweep_due_events
-    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(sessions))
-    with sessions() as db:
-        user = User(name="Refresh race", email=f"refresh-{uuid.uuid4().hex}@demo.com",
-                    role="ATTENDEE", avatar_url="", password_hash=hash_password("123456"))
-        db.add(user)
-        db.commit()
-        user_id, email = user.id, user.email
+    sessions = sessionmaker(bind=engine, autoflush=False)
+    user_ids = []
+    password_hash = hash_password("123456")
+
+    def create_user(client, role):
+        with sessions() as db:
+            user = User(name=role, email=f"race-{uuid.uuid4().hex}@example.com", role=role,
+                        avatar_url="", password_hash=password_hash)
+            db.add(user); db.commit()
+            user_ids.append(user.id)
+            email = user.email
+        response = client.post("/auth/login", json={"email": email, "password": "123456"})
+        assert response.status_code == 200
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
     def override_db():
         with sessions() as db:
             yield db
 
+    import app.services.lifecycle as lifecycle
+    real_sweep = lifecycle.sweep_due_events
+    monkeypatch.setattr(lifecycle, "sweep_due_events", lambda: real_sweep(sessions))
     app.dependency_overrides[get_db] = override_db
     try:
         with TestClient(app) as client:
-            response = client.post("/auth/login", json={"email": email, "password": "123456"})
-            cookie = response.cookies["evently_refresh"]
-            gate = threading.Barrier(2)
-
-            def rotate(_):
-                gate.wait(timeout=10)
-                return client.post("/auth/refresh", headers={"Cookie": f"evently_refresh={cookie}"}).status_code
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                assert sorted(pool.map(rotate, range(2))) == [200, 401]
+            yield client, sessions, engine, create_user
     finally:
         app.dependency_overrides.clear()
         with sessions.begin() as db:
-            db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
-            db.execute(delete(User).where(User.id == user_id))
+            event_ids = select(Event.id).where(Event.organizer_id.in_(user_ids))
+            reg_ids = select(Registration.id).where(Registration.event_id.in_(event_ids))
+            db.execute(delete(Checkin).where(Checkin.event_id.in_(event_ids)))
+            db.execute(delete(Ticket).where(Ticket.registration_id.in_(reg_ids)))
+            db.execute(delete(Registration).where(Registration.event_id.in_(event_ids)))
+            db.execute(delete(StaffEventAssignment).where(StaffEventAssignment.event_id.in_(event_ids)))
+            db.execute(delete(Event).where(Event.organizer_id.in_(user_ids)))
+            db.execute(delete(RefreshToken).where(RefreshToken.user_id.in_(user_ids)))
+            db.execute(delete(User).where(User.id.in_(user_ids)))
         engine.dispose()
+
+
+def prepare_capacity_one(pg_app):
+    client, sessions, engine, create_user = pg_app
+    org = create_user(client, "ORGANIZER")
+    attendees = [create_user(client, "ATTENDEE") for _ in range(5)]
+    start = utc_now() + timedelta(days=5)
+    response = client.post("/events", headers=org, json={
+        "title": "Race", "description": "Controlled concurrency", "location": "HCMC",
+        "start_time": start.isoformat(), "end_time": (start + timedelta(hours=2)).isoformat(),
+        "capacity": 1, "category": "Test", "banner_image": "",
+    })
+    assert response.status_code == 201
+    event_id = response.json()["id"]
+    assert client.post(f"/events/{event_id}/transition", headers=org, json={"status": "PUBLISHED"}).status_code == 200
+    return client, sessions, engine, attendees, event_id
+
+
+def counts(sessions, event_id):
+    with sessions() as db:
+        return (
+            db.get(Event, event_id).registered_count,
+            db.scalar(select(func.count()).select_from(Registration).where(Registration.event_id == event_id)),
+            db.scalar(select(func.count()).select_from(Ticket).join(Registration).where(Registration.event_id == event_id)),
+        )
+
+
+@needs_pg
+def test_concurrent_register_capacity_one(pg_app, monkeypatch):
+    """One transaction holds the row; four competitors must wait for its lock."""
+    import app.routers.registrations as registrations
+    client, sessions, engine, attendees, event_id = prepare_capacity_one(pg_app)
+    original = registrations._locked_event
+    held, release, attempted = threading.Event(), threading.Event(), threading.Event()
+    guard = threading.Lock()
+    pids = []
+
+    def controlled_lock(db, requested_id):
+        pid = db.execute(text("SELECT pg_backend_pid()")).scalar()
+        with guard:
+            first = not pids
+            pids.append(pid)
+            if len(pids) == 5:
+                attempted.set()
+        row = original(db, requested_id)
+        if first:
+            held.set()
+            assert release.wait(15), "Test did not release the first transaction"
+        return row
+
+    monkeypatch.setattr(registrations, "_locked_event", controlled_lock)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = [pool.submit(client.post, f"/events/{event_id}/register", headers=attendees[0])]
+        try:
+            assert held.wait(10), "First request never acquired the event"
+            futures += [pool.submit(client.post, f"/events/{event_id}/register", headers=h) for h in attendees[1:]]
+            assert attempted.wait(10)
+            deadline = time.monotonic() + 5
+            waiting = 0
+            while time.monotonic() < deadline:
+                with engine.connect() as connection:
+                    waiting = connection.execute(text(
+                        "SELECT count(*) FROM pg_stat_activity WHERE pid = ANY(:pids) AND wait_event_type = 'Lock'"
+                    ), {"pids": pids[1:]}).scalar()
+                if waiting == 4:
+                    break
+                time.sleep(0.02)
+            assert waiting == 4, "FOR UPDATE did not block all four competing transactions"
+        finally:
+            release.set()
+        results = [future.result(timeout=15) for future in futures]
+    assert sorted(response.status_code for response in results) == [201, 409, 409, 409, 409]
+    assert all(response.json()["code"] == "EVENT_FULL" for response in results if response.status_code == 409)
+    assert counts(sessions, event_id) == (1, 1, 1)
+
+
+@needs_pg
+def test_unlocked_control_exposes_lost_update_and_extra_tickets(pg_app, monkeypatch):
+    """Deliberately broken variant, isolated to this test, forces the bad schedule."""
+    import app.routers.registrations as registrations
+    client, sessions, _, attendees, event_id = prepare_capacity_one(pg_app)
+    gate = threading.Barrier(5)
+
+    def unlocked_read(db, requested_id):
+        row = db.scalar(select(Event).where(Event.id == requested_id))
+        gate.wait(timeout=10)  # All readers see 0 before any request can update it.
+        return row
+
+    monkeypatch.setattr(registrations, "_locked_event", unlocked_read)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        responses = list(pool.map(lambda h: client.post(f"/events/{event_id}/register", headers=h), attendees))
+    assert [response.status_code for response in responses] == [201] * 5
+    assert counts(sessions, event_id) == (1, 5, 5)
+
+
+@needs_pg
+def test_refresh_token_can_only_rotate_once_under_race(pg_app):
+    client, _, _, create_user = pg_app
+    create_user(client, "ATTENDEE")
+    cookie = client.cookies["evently_refresh"]
+    gate = threading.Barrier(2)
+
+    def rotate(_):
+        gate.wait(timeout=10)
+        return client.post("/auth/refresh", headers={"Cookie": f"evently_refresh={cookie}"}).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(rotate, range(2))) == [200, 401]

@@ -1,4 +1,5 @@
 """Test sự kiện: create, reschedule, states, notify (async)."""
+from app.timeutils import utc_now
 
 from datetime import datetime, timedelta
 
@@ -8,8 +9,8 @@ def _event_payload(**overrides) -> dict:
         "title": "Tech Meetup",
         "description": "A demo event",
         "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=3)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=3, hours=2)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=3)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=3, hours=2)).isoformat(),
         "capacity": 20,
         "category": "Technology",
         "banner_image": "https://example.com/banner.png",
@@ -43,8 +44,8 @@ def test_create_event_end_before_start_422(client, auth_headers):
     resp = client.post(
         "/events",
         json=_event_payload(
-            start_time=(datetime.now() + timedelta(days=3)).isoformat(),
-            end_time=(datetime.now() + timedelta(days=1)).isoformat(),
+            start_time=(utc_now() + timedelta(days=3)).isoformat(),
+            end_time=(utc_now() + timedelta(days=1)).isoformat(),
         ),
         headers=headers,
     )
@@ -59,8 +60,8 @@ def test_create_event_past_start_400(client, auth_headers):
     resp = client.post(
         "/events",
         json=_event_payload(
-            start_time=(datetime.now() - timedelta(days=1)).isoformat(),
-            end_time=(datetime.now() + timedelta(days=1)).isoformat(),
+            start_time=(utc_now() - timedelta(days=1)).isoformat(),
+            end_time=(utc_now() + timedelta(days=1)).isoformat(),
         ),
         headers=headers,
     )
@@ -77,8 +78,8 @@ def test_reschedule_end_before_start_422(client, auth_headers):
     resp = client.patch(
         f"/events/{event_id}",
         json={
-            "start_time": (datetime.now() + timedelta(days=5)).isoformat(),
-            "end_time": (datetime.now() + timedelta(days=4)).isoformat(),
+            "start_time": (utc_now() + timedelta(days=5)).isoformat(),
+            "end_time": (utc_now() + timedelta(days=4)).isoformat(),
         },
         headers=org,
     )
@@ -108,8 +109,8 @@ def test_full_lifecycle_create_to_complete(client, auth_headers):
     assert resp.json()["status"] == "PUBLISHED"
 
     # 3. Reschedule (PATCH): dời lịch + đổi tên
-    new_start = (datetime.now() + timedelta(days=10)).isoformat()
-    new_end = (datetime.now() + timedelta(days=10, hours=3)).isoformat()
+    new_start = (utc_now() + timedelta(days=10)).isoformat()
+    new_end = (utc_now() + timedelta(days=10, hours=3)).isoformat()
     resp = client.patch(
         f"/events/{event_id}",
         json={"title": "Tech Meetup v2", "start_time": new_start, "end_time": new_end},
@@ -117,7 +118,8 @@ def test_full_lifecycle_create_to_complete(client, auth_headers):
     )
     assert resp.status_code == 200
     assert resp.json()["title"] == "Tech Meetup v2"
-    assert resp.json()["start_time"].startswith(new_start[:19])
+    from app.timeutils import event_utc
+    assert datetime.fromisoformat(resp.json()["start_time"]) == event_utc(datetime.fromisoformat(new_start))
 
     # 4. Ongoing (đóng đăng ký, organizer chuẩn bị)
     resp = client.post(f"/events/{event_id}/transition", json={"status": "ONGOING"}, headers=org)
@@ -211,9 +213,9 @@ def test_list_events_cursor_walk(client, auth_headers):
     assert page2.status_code == 200 and len(page2.json()) == 1
     assert page2.headers.get("x-next-cursor") == ""  # hết dữ liệu
 
-    # cursor + offset dùng chung -> 400; cursor lạ -> 404
+    # cursor + offset dùng chung hoặc token malformed -> 400.
     assert client.get(f"/events?limit=2&offset=2&cursor={nxt}").status_code == 400
-    assert client.get("/events?cursor=no-such-id").status_code == 404
+    assert client.get("/events?cursor=no-such-id").status_code == 400
 
 
 def test_delete_event_draft_only(client, auth_headers):

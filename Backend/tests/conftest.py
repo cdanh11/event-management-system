@@ -1,12 +1,15 @@
-"""Cấu hình pytest: fixture chạy app với database SQLite trong bộ nhớ.
+"""Fixture chạy app trên DB test: SQLite memory hoặc PostgreSQL riêng.
 
 Dùng **dependency override** để thay ``get_db`` (PostgreSQL thật) bằng session
-SQLite - đúng kỹ thuật "Dependency override phục vụ test" trong yêu cầu:
+test - đúng kỹ thuật "Dependency override phục vụ test" trong yêu cầu:
   app.dependency_overrides[get_db] = override
 """
+import os
+from dataclasses import replace
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -17,12 +20,30 @@ from app.security import hash_password
 
 # StaticPool: tái dùng MỘT kết nối duy nhất - phải dùng cho SQLite ":memory:"
 # (nếu không, mỗi connection tạo một database rỗng riêng biệt).
-test_engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
+test_url = make_url(TEST_DATABASE_URL)
+if test_url.get_backend_name() == "postgresql":
+    if not (test_url.database or "").endswith(("_test", "_audit")):
+        raise RuntimeError("TEST_DATABASE_URL must name a separate *_test or *_audit database")
+    test_engine = create_engine(TEST_DATABASE_URL)
+else:
+    test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False}, poolclass=StaticPool)
+
+    @event.listens_for(test_engine, "connect")
+    def enable_sqlite_foreign_keys(connection, _):
+        connection.execute("PRAGMA foreign_keys=ON")
 TestSession = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
+
+
+@pytest.fixture(autouse=True)
+def isolate_notification_transport(monkeypatch):
+    """Never send test messages through SMTP/webhook credentials from local .env.
+
+    SMTP integration tests explicitly replace these settings with a loopback
+    inbox. All other tests use the simulated transport.
+    """
+    import app.services.notifier as notifier
+    monkeypatch.setattr(notifier, "settings", replace(notifier.settings, smtp_host="", notify_webhook_url=""))
 
 
 @pytest.fixture()
@@ -39,7 +60,7 @@ def db():
 
 @pytest.fixture()
 def client(db, monkeypatch):
-    """TestClient dùng app thật nhưng thay get_db bằng session SQLite."""
+    """TestClient dùng app thật nhưng thay get_db bằng session của DB test."""
 
     def override_get_db():
         session = TestSession()

@@ -1,12 +1,14 @@
 """Test /users lọc theo role và /events/{id}/staff xem danh sách staff đã gán."""
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from app.timeutils import utc_now
 
 
 def _payload(**overrides):
     data = {
         "title": "Design Sprint", "description": "A hands-on sprint", "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=4)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=4, hours=3)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=4)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=4, hours=3)).isoformat(),
         "capacity": 20, "category": "Workshop", "banner_image": "https://example.com/d.png",
     }
     data.update(overrides)

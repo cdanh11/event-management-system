@@ -1,8 +1,8 @@
 """Test chuyển trạng thái tự động theo giờ + mail hủy + staff history + tạo staff."""
-
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.services.lifecycle import sweep_due_events
+from app.timeutils import utc_now
 
 
 def _payload(**overrides):
@@ -10,8 +10,8 @@ def _payload(**overrides):
         "title": "Auto Show",
         "description": "Auto lifecycle demo",
         "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=5)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=5, hours=2)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=5)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=5, hours=2)).isoformat(),
         "capacity": 10,
         "category": "Music",
         "banner_image": "https://example.com/a.png",
@@ -30,8 +30,8 @@ def test_sweep_opens_started_before_start(db):
     db.flush()
     event = Event(
         organizer_id=org.id, title="Soon", description="d", location="HCMC",
-        start_time=datetime.now() + timedelta(minutes=10),
-        end_time=datetime.now() + timedelta(hours=2),
+        start_time=utc_now() + timedelta(minutes=10),
+        end_time=utc_now() + timedelta(hours=2),
         capacity=10, registered_count=0, status="PUBLISHED",
         category="Music", banner_url="",
     )
@@ -58,15 +58,15 @@ def test_sweep_completes_past_end(db):
     db.flush()
     old = Event(
         organizer_id=org.id, title="Old", description="d", location="HCMC",
-        start_time=datetime.now() - timedelta(hours=3),
-        end_time=datetime.now() - timedelta(hours=1),
+        start_time=utc_now() - timedelta(hours=3),
+        end_time=utc_now() - timedelta(hours=1),
         capacity=10, registered_count=0, status="STARTED",
         category="Music", banner_url="",
     )
     future = Event(
         organizer_id=org.id, title="Future", description="d", location="HCMC",
-        start_time=datetime.now() + timedelta(days=5),
-        end_time=datetime.now() + timedelta(days=5, hours=2),
+        start_time=utc_now() + timedelta(days=5),
+        end_time=utc_now() + timedelta(days=5, hours=2),
         capacity=10, registered_count=0, status="PUBLISHED",
         category="Music", banner_url="",
     )
