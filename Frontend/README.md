@@ -1,6 +1,6 @@
 # Evently Web MVP
 
-Client React/TypeScript/Vite dùng dữ liệu FastAPI thật. Mục tiêu là minh họa công nghệ và thao tác nghiệp vụ trên web; giao diện giữ các màn hình cần thiết, không có ảnh banner, preview, biểu đồ hoặc hộp thông báo phụ.
+Client React/TypeScript/Vite dùng dữ liệu FastAPI thật. Mục tiêu là minh họa công nghệ và thao tác nghiệp vụ trên web; Explore hiển thị lưới sự kiện có ảnh, các màn hình vận hành giữ dạng danh sách gọn.
 
 ## Chạy
 
@@ -25,6 +25,10 @@ Mở http://localhost:5173. VITE_API_BASE_URL mặc định http://localhost:800
 Trong Manage, Overview chứa thông tin và hành động lifecycle; Staff gán/tạo nhân viên; Schedule sửa lịch khi Draft/Published; Check-in nhận vé cho organizer sở hữu.
 
 Form Create event kiểm tra thông tin bắt buộc, thời gian tương lai, end sau start và capacity nguyên dương. Create draft tạo nháp; Publish mới mở đăng ký. Begin preparation đóng đăng ký, Start event mở check-in, Complete event kết thúc.
+
+Ảnh sự kiện dùng trường `banner_image` đã có của API. Trong Create event hoặc Manage → Overview, organizer có thể chọn ảnh có sẵn, nhập URL HTTP/HTTPS hoặc để trống để chọn ảnh theo tiêu đề. Save cover chỉ gửi trường ảnh qua PATCH hiện có, không thay lịch, sức chứa hoặc đăng ký; chỉ áp dụng khi backend cho phép sửa Draft/Published.
+
+Các ảnh chụp minh họa từ Unsplash nằm trong `public/images/events/`, kèm [nguồn ảnh](public/images/events/sources.json). Ảnh minh họa theo chủ đề không phải ảnh xác nhận sự kiện đã diễn ra. Frontend ưu tiên ảnh do API trả về, dùng ảnh theo chủ đề khi trống/URL không hợp lệ/tải lỗi. Ảnh đi cùng bản build, không phụ thuộc CDN khi mở trang; ảnh tùy chỉnh bên ngoài vẫn cần kết nối tới nguồn đó. Không thêm API upload, migration, dữ liệu mock hoặc cập nhật lại DB cũ.
 
 Vé QR chứa mã thật từ API. Vé đã hủy hoặc đã check-in không dùng lại được. Sau khi hủy không thể đăng ký lại cùng sự kiện; dùng attendee khác để thử tiếp. Màn hình Check-in gửi cả mã vé và ID event đang chọn để backend kiểm tra trước khi nhận vé.
 
