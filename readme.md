@@ -45,7 +45,7 @@ npm --version
 docker compose version
 ```
 
-Cần clone phiên bản chứa source mới: backend PR #9 đã merge; source frontend hoàn chỉnh nằm trong PR #10 (foundation, gồm cả attendee/operations), sau đó merge documentation. Main chỉ có đầy đủ sau khi merge. Trước khi merge, dùng `git switch --track origin/feature/uiux-v2-documentation` để chạy toàn bộ source cuối. Repo private cần quyền truy cập. Sau clone thực hiện lần lượt các bước dưới đây; không sao chép .venv/node_modules/database từ máy khác.
+Sau clone thực hiện lần lượt các bước dưới đây; không sao chép .venv/node_modules/database từ máy khác. Đợt kiểm chứng bổ sung ngày 10/10/2026 nằm trên branch `codex/final-verification` (chưa tự merge vào main); dùng `git switch --track origin/codex/final-verification` nếu cần đúng bản bổ sung này. Xem [minh chứng mới](docs/evidence/2026-10-10/README.md) và [báo cáo nội dung cập nhật](docs/Bao_cao_Evently_FINAL.docx).
 
 **1. PostgreSQL**
 
@@ -115,9 +115,9 @@ Mật khẩu chung: **123456**.
 | --- | --- | --- |
 | ORGANIZER (2) | organizer1, organizer2 (hoặc organizer1@demo.com…) | Tạo, dời lịch, công bố, gán staff, vận hành, thông báo và Dashboard |
 | STAFF (5) | staff1…staff5 (hoặc staff1@demo.com…) | Check-in sự kiện được phân công |
-| ATTENDEE (100) | user1…user100 (hoặc user1@demo.com…) | Đăng ký, xem vé và hủy đăng ký |
+| ATTENDEE (30) | user1…user30 (hoặc user1@demo.com…) | Đăng ký, xem vé và hủy đăng ký |
 
-Dataset mới có 10 Published còn chỗ đăng ký, 5 Completed; 278 đăng ký/vé và 75 check-in thật (15 mỗi sự kiện đã hoàn thành), 30 assignment. Hai organizer chia nhau sở hữu sự kiện; năm staff được phân công theo vòng. user100 chưa đăng ký các event mở, tiện thử Register. Vé mở có mã `EVT-OPEN-01-U001` (vé cũ vẫn giữ mã đã phát hành); vé đã check-in có trạng thái USED. Muốn thử scan mới, organizer chuyển một event mở sang STARTED trước. Dữ liệu cũ được giữ nên tổng DB hiện có thể lớn hơn dataset này.
+Dataset bảo vệ trên DB trống có 20 sự kiện: 10 PUBLISHED (9 còn chỗ, 1 đã đầy), 5 COMPLETED, 2 DRAFT, 1 ONGOING, 1 STARTED và 1 CANCELLED; 181 đăng ký/vé, 62 check-in và 40 phân công. Có 2 organizer, 5 staff, 30 attendee; mật khẩu tài khoản seed là `123456`. `user1` chưa đăng ký các sự kiện mở, tiện thử đăng ký/hủy. `Backend Architecture Roundtable` đã đầy để kiểm tra 409. `Check-in Operations Lab` thuộc organizer1, gán staff1/staff2: user3–user6 có vé VALID, user1/user2 đã USED, user7 đã CANCELLED. Buổi này được mở check-in sớm bằng quyền organizer; không dùng nó để chứng minh lifecycle tự chuyển theo giờ. Mã vé có định dạng `EV-…`, QR chứa đúng mã backend cấp. Seed không gửi email và chạy lại không xóa/đặt lại dữ liệu đã thao tác; DB có sẵn có thể lớn hơn dataset này.
 
 Username ngắn chỉ là username đánh số trỏ tới email đánh số, không xác thực theo tên hiển thị và không đổi quyền. Đăng ký tài khoản mới từ trang login luôn tạo ATTENDEE. Organizer có thể tạo STAFF trong tab Staff.
 

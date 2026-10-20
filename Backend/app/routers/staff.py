@@ -13,6 +13,10 @@ from ..deps import current_user, require
 from ..errors import api_error
 from ..models import Checkin, Event, Registration, StaffEventAssignment, Ticket, User
 from ..schemas import (
+    AUTH_RESPONSES,
+    ERROR_400,
+    ERROR_404,
+    ERROR_409,
     AssignmentIn,
     AssignmentOut,
     CheckinHistoryOut,
@@ -27,7 +31,7 @@ from ..schemas import (
 from ..security import hash_password
 from ..serializers import to_event, to_staff_assignment, to_user
 
-router = APIRouter()
+router = APIRouter(responses=AUTH_RESPONSES)
 
 
 @router.get("/staff/events", response_model=list[EventOut], tags=["staff"])
@@ -51,7 +55,7 @@ def organizer_dashboard(
 ):
     """Thống kê nhanh cho organizer: sự kiện, tổng đăng ký còn hiệu lực, tổng check-in.
 
-    Đếm bằng SQL func.count() — O(1) bộ nhớ, không kéo toàn bộ ORM về RAM.
+    Hai tổng đếm dùng SQL COUNT; danh sách event vẫn dùng bộ nhớ theo số event.
     """
     events = db.scalars(
         select(Event).where(Event.organizer_id == user.id).order_by(Event.start_time)
@@ -114,7 +118,7 @@ def organizer_events(
     return {"items": [to_event(row) for row in rows], "total": total, "limit": limit, "offset": offset, "has_more": offset + len(rows) < total}
 
 
-@router.post("/events/{event_id}/staff", response_model=AssignmentOut, status_code=201, tags=["assignments"])
+@router.post("/events/{event_id}/staff", response_model=AssignmentOut, status_code=201, tags=["assignments"], responses={400: ERROR_400, 404: ERROR_404, 409: ERROR_409})
 def assign_staff(
     event_id: str,
     payload: AssignmentIn,
@@ -157,7 +161,7 @@ def list_users(
     return [to_user(u) for u in users] # convert từng User → dict
 
 
-@router.get("/events/{event_id}/staff", response_model=list[StaffAssignmentOut], tags=["assignments"])
+@router.get("/events/{event_id}/staff", response_model=list[StaffAssignmentOut], tags=["assignments"], responses={404: ERROR_404})
 def list_event_staff(
     event_id: str,
     user: User = Depends(require("ORGANIZER")),
@@ -170,8 +174,11 @@ def list_event_staff(
     if event.organizer_id != user.id:
         api_error(403, "FORBIDDEN", "You do not own this event")
 
-    rows = db.scalars(select(StaffEventAssignment).where(StaffEventAssignment.event_id == event_id)).all()
-    return [to_staff_assignment(a, db.get(User, a.staff_id)) for a in rows]
+    # One data query regardless of the number of assignments (no per-row get).
+    rows = db.execute(select(StaffEventAssignment, User)
+                      .join(User, User.id == StaffEventAssignment.staff_id)
+                      .where(StaffEventAssignment.event_id == event_id)).all()
+    return [to_staff_assignment(assignment, staff) for assignment, staff in rows]
 
 
 def _can_view_event(user: User, event: Event, db: Session) -> bool:
@@ -195,6 +202,7 @@ def _can_view_event(user: User, event: Event, db: Session) -> bool:
     "/events/{event_id}/checkins",
     response_model=list[CheckinHistoryOut],
     tags=["checkins"],
+    responses={404: ERROR_404},
 )
 def event_checkin_history(
     event_id: str,
@@ -213,26 +221,18 @@ def event_checkin_history(
     if not _can_view_event(user, event, db):
         api_error(403, "FORBIDDEN", "You cannot view this event")
 
-    rows = db.scalars(
-        select(Checkin)
+    rows = db.execute(
+        select(Checkin.id, Ticket.ticket_code, User.name.label("attendee_name"), Checkin.checked_in_at)
+        .join(Ticket, Ticket.id == Checkin.ticket_id)
+        .join(User, User.id == Checkin.attendee_id)
         .where(Checkin.event_id == event_id)
-        .order_by(Checkin.checked_in_at.desc())
+        .order_by(Checkin.checked_in_at.desc(), Checkin.id.desc())
         .limit(limit)
     ).all()
-    history = []
-    for record in rows:
-        ticket = db.get(Ticket, record.ticket_id)
-        attendee = db.get(User, record.attendee_id)
-        history.append({
-            "id": record.id,
-            "ticket_code": ticket.ticket_code if ticket else "?",
-            "attendee_name": attendee.name if attendee else "?",
-            "checked_in_at": record.checked_in_at,
-        })
-    return history
+    return [dict(row._mapping) for row in rows]
 
 
-@router.post("/users/staff", response_model=UserOut, status_code=201, tags=["staff"])
+@router.post("/users/staff", response_model=UserOut, status_code=201, tags=["staff"], responses={409: ERROR_409})
 def create_staff(
     payload: StaffCreateIn,
     user: User = Depends(require("ORGANIZER")),

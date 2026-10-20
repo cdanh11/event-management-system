@@ -1,12 +1,12 @@
 """Test realtime occupancy Phase 0: snapshot REST + WS + broadcast."""
-
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app import realtime
+from app.timeutils import utc_now
 
 
 def _payload(**overrides):
@@ -14,8 +14,8 @@ def _payload(**overrides):
         "title": "Live Show",
         "description": "Realtime demo",
         "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=5)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=5, hours=2)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=5)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=5, hours=2)).isoformat(),
         "capacity": 10,
         "category": "Music",
         "banner_image": "https://example.com/b.png",

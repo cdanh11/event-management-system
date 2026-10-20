@@ -11,10 +11,11 @@ Quy ước:
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
+from .timeutils import EventDateTime
 
 
 def uid() -> str:
@@ -26,27 +27,10 @@ def utcnow() -> datetime:
     """UTC hiện tại dạng naive — khớp cột DateTime (không tz) trong DB.
 
     Thay ``datetime.utcnow()`` đã deprecated từ Python 3.12.
-    Dùng cho các mốc nội bộ (token expiry). Giờ WALL-CLOCK của event
-    (start/end do organizer nhập, seed) dùng ``localnow`` bên dưới.
+    Dùng cho các cột audit/token UTC-naive từ schema ban đầu.
+    Event start/end dùng EventDateTime (UTC-aware), xem timeutils.py.
     """
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def localnow() -> datetime:
-    """Giờ hiện tại dạng naive theo giờ máy chủ — khung so sánh cho giờ event.
-
-    Quy ước: API nhận ISO naive được hiểu là giờ địa phương (khớp input
-    datetime-local của FE và seed); ISO aware được chuyển về giờ địa phương
-    qua ``as_local_naive`` trước khi so.
-    """
-    return datetime.now().replace(tzinfo=None)
-
-
-def as_local_naive(value: datetime) -> datetime:
-    """Chuẩn hóa datetime về naive-giờ-địa-phương để so với giờ event."""
-    if value.tzinfo is not None:
-        return value.astimezone().replace(tzinfo=None)
-    return value
 
 
 class User(Base):
@@ -55,6 +39,7 @@ class User(Base):
     """
 
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('ORGANIZER','STAFF','ATTENDEE')", name="ck_users_role"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(120))
@@ -79,7 +64,11 @@ class Event(Base):
     __table_args__ = (
         # Phase 2 (Tầng 3): phục vụ truy vấn lọc status + sắp xếp start_time
         # của GET /events (offset/cursor pagination).
-        Index("ix_events_status_start_time", "status", "start_time"),
+        Index("ix_events_status_start_time_id", "status", "start_time", "id"),
+        CheckConstraint("status IN ('DRAFT','PUBLISHED','ONGOING','STARTED','COMPLETED','CANCELLED')", name="ck_events_status"),
+        CheckConstraint("capacity > 0", name="ck_events_capacity"),
+        CheckConstraint("registered_count >= 0 AND registered_count <= capacity", name="ck_events_registered_count"),
+        CheckConstraint("end_time > start_time", name="ck_events_time_order"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -87,11 +76,11 @@ class Event(Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
     location: Mapped[str] = mapped_column(String(300))
-    start_time: Mapped[datetime] = mapped_column(DateTime)
-    end_time: Mapped[datetime] = mapped_column(DateTime)
+    start_time: Mapped[datetime] = mapped_column(EventDateTime())
+    end_time: Mapped[datetime] = mapped_column(EventDateTime())
     capacity: Mapped[int] = mapped_column(Integer)
     registered_count: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[str] = mapped_column(String(16), default="DRAFT", index=True)
+    status: Mapped[str] = mapped_column(String(16), default="DRAFT")
     category: Mapped[str] = mapped_column(String(80))
     banner_url: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -122,6 +111,7 @@ class Registration(Base):
     __tablename__ = "registrations"
     __table_args__ = (
         UniqueConstraint("event_id", "attendee_id", name="uq_event_attendee"),
+        CheckConstraint("status IN ('REGISTERED','CANCELLED')", name="ck_registrations_status"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -138,6 +128,7 @@ class Ticket(Base):
     """
 
     __tablename__ = "tickets"
+    __table_args__ = (CheckConstraint("status IN ('VALID','USED','CANCELLED')", name="ck_tickets_status"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     registration_id: Mapped[str] = mapped_column(
@@ -153,6 +144,7 @@ class Checkin(Base):
     """Lịch sử check-in: một vé chỉ được check-in đúng một lần (unique ticket_id)."""
 
     __tablename__ = "checkins"
+    __table_args__ = (CheckConstraint("status = 'SUCCESS'", name="ck_checkins_status"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     ticket_id: Mapped[str] = mapped_column(

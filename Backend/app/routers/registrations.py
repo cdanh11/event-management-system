@@ -6,8 +6,6 @@
   - POST /registrations/{id}/cancel   -> hủy đăng ký (Cancel)
   - GET  /registrations/{id}/ticket   -> vé của một đăng ký
 """
-from datetime import datetime
-
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -17,11 +15,13 @@ from ..db import get_db
 from ..access import require_registration_access
 from ..deps import current_user, require
 from ..errors import api_error
-from ..models import Event, Registration, Ticket, User, as_local_naive, localnow
+from ..models import Event, Registration, Ticket, User
+from ..timeutils import utc_now
 from ..realtime import manager, occupancy_payload
 from ..services.notifier import send_ticket_email
 from ..schemas import (
     AUTH_RESPONSES,
+    ERROR_400,
     ERROR_404,
     ERROR_409,
     RegisterOut,
@@ -30,17 +30,12 @@ from ..schemas import (
 )
 from ..serializers import to_registration, to_ticket
 
-router = APIRouter()
+router = APIRouter(responses=AUTH_RESPONSES)
 
 
-def _now_naive() -> datetime:
-    """Giờ hiện tại so với giờ event (wall-clock địa phương, xem models.localnow)."""
-    return localnow()
-
-
-def _as_naive(value: datetime) -> datetime:
-    """Chuẩn hóa datetime aware/naive về giờ địa phương để so với giờ event."""
-    return as_local_naive(value)
+def _locked_event(db: Session, event_id: str) -> Event | None:
+    """Keep the capacity read and subsequent writes under the same row lock."""
+    return db.scalar(select(Event).where(Event.id == event_id).with_for_update())
 
 
 @router.post(
@@ -48,7 +43,7 @@ def _as_naive(value: datetime) -> datetime:
     response_model=RegisterOut,
     status_code=201,
     tags=["registrations"],
-    responses={**AUTH_RESPONSES, 404: ERROR_404, 409: ERROR_409},
+    responses={400: ERROR_400, 404: ERROR_404, 409: ERROR_409},
 )
 def register(
     event_id: str,
@@ -64,7 +59,7 @@ def register(
     try:
         # Khoá dòng event để kiểm tra capacity và cập nhật registered_count
         # thành một giao dịch nguyên tử.
-        event = db.scalar(select(Event).where(Event.id == event_id).with_for_update())
+        event = _locked_event(db, event_id)
         if event is None:
             api_error(404, "EVENT_NOT_FOUND", "Event not found")
 
@@ -73,7 +68,7 @@ def register(
 
         # Sự kiện PUBLISHED nhưng đã qua giờ bắt đầu (organizer quên COMPLETED)
         # thì không cho nhận vé mới — tránh chiếm slot của sự kiện đã diễn ra.
-        if _as_naive(event.start_time) <= _now_naive():
+        if event.start_time <= utc_now():
             api_error(400, "EVENT_STARTED", "Event has already started")
 
         existing = db.scalar(
@@ -92,7 +87,7 @@ def register(
         db.add(registration)
         db.flush()  # flush để có registration.id trước khi tạo ticket
 
-        code = f"EV-{registration.id.replace('-', '')[:8].upper()}"
+        code = f"EV-{registration.id.replace('-', '')[:24].upper()}"
         ticket = Ticket(registration_id=registration.id, ticket_code=code, qr_value=code)
         db.add(ticket)
 
@@ -108,7 +103,7 @@ def register(
 
         # Phase 0: đẩy occupancy realtime cho dashboard Admin sau response.
         background_tasks.add_task(manager.broadcast_occupancy, event.id, occupancy)
-        # Phase 2: gửi vé/QR sau response — client nhận 201 ngay trong vài ms.
+        # Gửi vé/QR sau response; không cam kết latency khi chưa đo tải thực tế.
         background_tasks.add_task(
             send_ticket_email, attendee_email, show_title, ticket_code, ticket_qr
         )
@@ -136,7 +131,7 @@ def my_registrations(
     return [to_registration(r) for r in rows]
 
 
-@router.get("/registrations/{registration_id}", response_model=RegistrationOut, tags=["registrations"])
+@router.get("/registrations/{registration_id}", response_model=RegistrationOut, tags=["registrations"], responses={404: ERROR_404})
 def get_registration(
     registration_id: str,
     user: User = Depends(current_user),
@@ -154,6 +149,7 @@ def get_registration(
     "/registrations/{registration_id}/cancel",
     response_model=RegistrationOut,
     tags=["registrations"],
+    responses={400: ERROR_400, 404: ERROR_404, 409: ERROR_409},
 )
 def cancel_registration(
     registration_id: str,
@@ -202,6 +198,7 @@ def cancel_registration(
     "/registrations/{registration_id}/ticket",
     response_model=TicketOut,
     tags=["tickets"],
+    responses={404: ERROR_404},
 )
 def ticket_for_registration(
     registration_id: str,

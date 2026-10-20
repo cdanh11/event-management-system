@@ -5,7 +5,7 @@
 - ``Base``: lớp cơ sở cho mọi model ORM, được Alembic dùng để đọc schema.
 - ``get_db``: dependency dạng generator (yield) cung cấp 1 Session mỗi request.
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -17,6 +17,17 @@ engine = create_engine(settings.database_url, pool_pre_ping=True)
 # autocommit=False: giao dịch do lập trình viên commit một cách tường minh.
 # autoflush=False: kiểm soát thời điểm SQL được phát ra (rõ ràng hơn).
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+
+def assert_schema_ready() -> None:
+    """Fail before the lifecycle sweep if legacy event times are not migrated."""
+    with engine.connect() as connection:
+        try:
+            revision = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        except Exception as exc:
+            raise RuntimeError("Database schema missing; run python -m alembic upgrade head") from exc
+        if revision != "0004_data_invariants":
+            raise RuntimeError("Database schema is outdated; run python -m alembic upgrade head before starting the API")
 
 
 class Base(DeclarativeBase):

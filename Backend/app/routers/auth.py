@@ -16,7 +16,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import current_user
 from ..models import RefreshToken, User, utcnow
-from ..schemas import LoginIn, RegisterIn, TokenOut, UserOut, login_email
+from ..schemas import ERROR_401, ERROR_409, LoginIn, RegisterIn, TokenOut, UserOut, login_email
 from ..security import access_token, digest, hash_password, new_refresh, verify_password
 from ..serializers import to_user
 
@@ -33,7 +33,7 @@ def _authenticate(email: str, password: str, db: Session) -> User:
     return user
 
 
-@router.post("/auth/token", response_model=TokenOut, tags=["auth"])
+@router.post("/auth/token", response_model=TokenOut, tags=["auth"], responses={401: ERROR_401})
 def oauth2_token(response: Response, form: OAuth2PasswordRequestFormStrict = Depends(), db: Session = Depends(get_db)):
     """OAuth2 password flow: username nhận tên tài khoản hoặc email; grant_type=password.
 
@@ -75,7 +75,7 @@ def _token_body(user: User, access: str) -> dict:
     return {"access_token": access, "user": to_user(user)}
 
 
-@router.post("/auth/login", response_model=TokenOut, tags=["auth"])
+@router.post("/auth/login", response_model=TokenOut, tags=["auth"], responses={401: ERROR_401})
 def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
     """Đăng nhập bằng username hoặc email + mật khẩu -> trả JWT và refresh cookie.
 
@@ -90,7 +90,7 @@ def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
     return _token_body(user, access_token(user.id, user.role))
 
 
-@router.post("/auth/register", response_model=TokenOut, status_code=201, tags=["auth"])
+@router.post("/auth/register", response_model=TokenOut, status_code=201, tags=["auth"], responses={409: ERROR_409})
 def register_account(payload: RegisterIn, response: Response, db: Session = Depends(get_db)):
     """Tự đăng ký tài khoản ATTENDEE mới + đăng nhập luôn (trả token + refresh cookie)."""
     from ..errors import api_error
@@ -118,7 +118,7 @@ def register_account(payload: RegisterIn, response: Response, db: Session = Depe
     return _token_body(user, access_token(user.id, user.role))
 
 
-@router.post("/auth/refresh", response_model=TokenOut, tags=["auth"])
+@router.post("/auth/refresh", response_model=TokenOut, tags=["auth"], responses={401: ERROR_401})
 def refresh(
     response: Response,
     evently_refresh: str | None = Cookie(None),
@@ -162,7 +162,7 @@ def logout(
     response.delete_cookie("evently_refresh")
 
 
-@router.get("/auth/me", response_model=UserOut, tags=["auth"])
+@router.get("/auth/me", response_model=UserOut, tags=["auth"], responses={401: ERROR_401})
 def me(user: User = Depends(current_user)):
     """Thông tin user hiện tại (ứng dụng dependency current_user)."""
     return to_user(user)

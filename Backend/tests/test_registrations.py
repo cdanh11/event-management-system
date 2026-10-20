@@ -1,6 +1,7 @@
 """Test đăng ký/hủy (vòng đời Register–Cancel) và vé."""
+from datetime import timedelta
 
-from datetime import datetime, timedelta
+from app.timeutils import utc_now
 
 
 def _payload(**overrides):
@@ -8,8 +9,8 @@ def _payload(**overrides):
         "title": "Workshop",
         "description": "Hands-on day",
         "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=5)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=5, hours=4)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=5)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=5, hours=4)).isoformat(),
         "capacity": 2,
         "category": "Education",
         "banner_image": "https://example.com/b.png",
@@ -73,8 +74,8 @@ def test_register_past_event_400(client, auth_headers, db):
     event_id = _published_event(client, org)
 
     db.query(Event).filter_by(id=event_id).update({
-        "start_time": datetime.now() - timedelta(days=1),
-        "end_time": datetime.now() - timedelta(hours=20),
+        "start_time": utc_now() - timedelta(days=1),
+        "end_time": utc_now() - timedelta(hours=20),
     })
     db.commit()
 

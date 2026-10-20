@@ -13,13 +13,14 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .db import engine
+from .db import assert_schema_ready, engine, get_db
 from .middleware import TimingLoggingMiddleware
 from .routers import api_router
 from .config import settings
@@ -40,9 +41,12 @@ async def lifespan(app: FastAPI):
     """
     from .services.lifecycle import lifecycle_loop, sweep_due_events
 
+    if get_db not in app.dependency_overrides:
+        await asyncio.to_thread(assert_schema_ready)
+
     logger.info("Lifespan startup: ứng dụng Evently bắt đầu khởi chạy.")
     try:
-        # DB test (SQLite override) hoặc DB chưa sẵn: bỏ qua, sweep loop sẽ thử lại.
+        # Lỗi sweep tạm thời được retry ở vòng nền; schema đã kiểm tra ở trên.
         await asyncio.to_thread(sweep_due_events)
     except Exception:  # noqa: BLE001
         logger.warning("startup sweep skipped (DB chưa sẵn sàng)")
@@ -98,13 +102,13 @@ app.add_middleware(TimingLoggingMiddleware)
 
 
 # ---------------- Exception handler tập trung ----------------------------
-@app.exception_handler(HTTPException)
-async def http_error_handler(_: Request, exc: HTTPException):
-    """Chuẩn hóa fastapi.HTTPException thành {status, code, message}.
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(_: Request, exc: StarletteHTTPException):
+    """Chuẩn hóa cả lỗi nghiệp vụ FastAPI lẫn routing 404/405 của Starlette.
 
     Nếu module khác đã trả dạng {code,message} thì giữ
-    nguyên; nếu không thì đóng gói lại để client xử lý thống nhất. Lỗi routing
-    của Starlette và ngoại lệ chưa xử lý không thuộc phạm vi handler này.
+    nguyên; nếu không thì đóng gói lại để client xử lý thống nhất.
+    Ngoại lệ chưa được xử lý không thuộc phạm vi HTTPException handler.
     """
     if isinstance(exc.detail, dict):
         detail = exc.detail

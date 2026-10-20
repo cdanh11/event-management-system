@@ -29,7 +29,7 @@ Mở `/docs`, chọn Authorize, nhập email hoặc username đánh số vào us
 | app/services/lifecycle.py | Tự chuyển trạng thái theo giờ |
 | app/services/notifier.py | Webhook async, SMTP trong thread, email/QR và xử lý lỗi transport |
 | app/seed.py | Dữ liệu mẫu có registration/ticket thật, counter khớp dữ liệu |
-| alembic/ | Migration 0001 schema cố định, 0002 composite index |
+| alembic/ | 0001 schema; 0002 index; 0003 event UTC; 0004 CHECK constraints và index (status, start_time, id) |
 | tests/, scripts/ | Kiểm thử và benchmark PostgreSQL |
 
 ## Minh chứng FastAPI
@@ -46,7 +46,7 @@ Mở `/docs`, chọn Authorize, nhập email hoặc username đánh số vào us
 | Lifespan | Quét startup, chạy lifecycle task; cancel/await task và đóng HTTP client/engine khi shutdown |
 | BackgroundTasks | Broadcast, gửi vé và thông báo sau commit; không truyền ORM vào task |
 | WebSocket | Ticket 30 giây dùng một lần, snapshot rồi broadcast theo event room |
-| TestClient/override | SQLite riêng cho API và lifecycle; PostgreSQL riêng cho FOR UPDATE |
+| TestClient/override | Suite chạy trên SQLite hoặc PostgreSQL riêng; PostgreSQL kiểm chứng khóa dòng, migration và múi giờ |
 
 ## Quy tắc nghiệp vụ
 

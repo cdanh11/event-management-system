@@ -1,9 +1,10 @@
 """Hồi quy các bất biến khi chốt MVP: quyền tài nguyên, trạng thái và dữ liệu."""
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
 from app.models import Event
+from app.timeutils import utc_now
 from app.services.lifecycle import sweep_due_events
 from tests.conftest import TestSession
 
@@ -11,8 +12,8 @@ from tests.conftest import TestSession
 def event_payload():
     return {
         "title": "FastAPI demo", "description": "Review", "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=2)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=2, hours=2)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=2)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=2, hours=2)).isoformat(),
         "capacity": 5, "category": "Technology",
     }
 
@@ -78,8 +79,8 @@ def test_delete_draft_with_staff_assignment(client, auth_headers):
 def test_sweep_catches_up_after_downtime(client, auth_headers, db):
     _, _, event_id, _ = booking(client, auth_headers)
     event = db.get(Event, event_id)
-    event.start_time = datetime.now() - timedelta(hours=3)
-    event.end_time = datetime.now() - timedelta(hours=1)
+    event.start_time = utc_now() - timedelta(hours=3)
+    event.end_time = utc_now() - timedelta(hours=1)
     db.commit()
     frames = sweep_due_events(TestSession)
     assert [(frame["event_id"], frame["status"]) for frame in frames] == [(event_id, "COMPLETED")]
@@ -88,7 +89,7 @@ def test_sweep_catches_up_after_downtime(client, auth_headers, db):
 def test_mixed_timezone_payload_and_cors_headers(client, auth_headers):
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     payload = event_payload()
-    payload["start_time"] = (datetime.now() + timedelta(days=2)).astimezone().isoformat()
+    payload["start_time"] = (utc_now() + timedelta(days=2)).astimezone().isoformat()
     assert client.post("/events", json=payload, headers=org).status_code == 201
     response = client.get("/events", headers={"Origin": "http://localhost:5173"})
     assert "X-Next-Cursor" in response.headers["access-control-expose-headers"]

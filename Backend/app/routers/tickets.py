@@ -7,10 +7,10 @@ from ..access import require_registration_access
 from ..deps import current_user
 from ..errors import api_error
 from ..models import Registration, Ticket, User
-from ..schemas import TicketOut
+from ..schemas import AUTH_RESPONSES, ERROR_404, TicketOut
 from ..serializers import to_ticket
 
-router = APIRouter()
+router = APIRouter(responses={**AUTH_RESPONSES, 404: ERROR_404})
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketOut, tags=["tickets"])

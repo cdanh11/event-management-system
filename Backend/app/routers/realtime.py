@@ -18,7 +18,7 @@ from ..deps import current_user, require
 from ..errors import api_error
 from ..models import Event, User
 from ..realtime import WS_TICKET_TTL_SECONDS, manager, mint_ws_ticket, occupancy_payload, redeem_ws_ticket
-from ..schemas import AUTH_RESPONSES, ERROR_404, OccupancyOut, WsTicketOut
+from ..schemas import AUTH_RESPONSES, ERROR_401, ERROR_404, OccupancyOut, WsTicketOut
 
 router = APIRouter()
 
@@ -60,6 +60,7 @@ def event_occupancy(event_id: str, db: Session = Depends(get_db)):
     "/ws/ticket",
     response_model=WsTicketOut,
     tags=["realtime"],
+    responses={401: ERROR_401},
 )
 def create_ws_ticket(user: User = Depends(current_user)):
     """Cấp ticket WS một lần cho user đã đăng nhập (gọi qua header Authorization)."""

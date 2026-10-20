@@ -1,6 +1,6 @@
 """Tự động chuyển trạng thái event theo thời gian (không cần scheduler ngoài).
 
-Quy tắc (wall-clock địa phương, khớp giờ event do organizer nhập):
+Quy tắc (so sánh UTC-aware, không phụ thuộc timezone máy chủ):
 - PUBLISHED/ONGOING và đã tới (start_time - 15 phút) -> STARTED (mở check-in).
 - STARTED và đã qua end_time -> COMPLETED.
 
@@ -15,7 +15,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 
 from ..db import SessionLocal
-from ..models import Event, as_local_naive, localnow
+from ..models import Event
+from ..timeutils import utc_now
 from ..realtime import manager, occupancy_payload
 
 logger = logging.getLogger("evently.lifecycle")
@@ -25,11 +26,7 @@ SWEEP_INTERVAL_SECONDS = 60
 
 
 def _now() -> datetime:
-    return localnow()
-
-
-def _naive(value: datetime) -> datetime:
-    return as_local_naive(value)
+    return utc_now()
 
 
 def sweep_due_events(session_factory=SessionLocal) -> list[dict]:

@@ -4,10 +4,13 @@ SMTP chỉ kết nối inbox localhost của fixture, không gửi tới ngườ
 """
 import socketserver
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from email import policy
 from email.parser import BytesParser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 
 from app.services import notifier
 from tests.test_final_review import booking, event_payload
@@ -139,3 +142,57 @@ def test_delivery_failure_preserves_booking_and_explicit_notify_returns_502(clie
     assert client.get(f"/tickets/{result['ticket']['id']}", headers=att).json()["status"] == "VALID"
     assert client.get(f"/events/{event_id}").json()["registered_count"] == 1
     assert client.post(f"/events/{event_id}/notify", headers=org).status_code == 502
+
+
+def test_real_webhook_wait_does_not_block_other_requests(client, auth_headers, monkeypatch):
+    """Real loopback HTTP I/O: health completes before the webhook is released.
+
+    Events control the order rather than relying on sleep/latency thresholds.
+    Only an inbox in this process is contacted; no messages leave the machine.
+    """
+    org, _, event_id, _ = booking(client, auth_headers)
+    entered, release = threading.Event(), threading.Event()
+    payloads = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            payloads.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            entered.set()
+            if not release.wait(timeout=10):
+                self.send_error(504)
+                return
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *_):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            monkeypatch.setattr(notifier, "settings", replace(
+                notifier.settings, smtp_host="",
+                notify_webhook_url=f"http://127.0.0.1:{server.server_port}/notify",
+            ))
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pending = pool.submit(client.post, f"/events/{event_id}/notify", headers=org)
+                try:
+                    assert entered.wait(timeout=5), "Webhook was not reached"
+                    assert not pending.done(), "Notify must wait for the transport response"
+                    health = pool.submit(client.get, "/health").result(timeout=3)
+                    assert health.status_code == 200
+                    assert not release.is_set()
+                finally:
+                    release.set()
+                response = pending.result(timeout=5)
+            assert response.status_code == 200
+            assert response.json()["mode"] == "webhook"
+            assert response.json()["emails_sent"] == 1
+            assert payloads[0]["recipients"] == ["att@demo.com"]
+        finally:
+            release.set()
+            server.shutdown()
+            worker.join(timeout=2)

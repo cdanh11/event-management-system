@@ -1,6 +1,7 @@
 """Test check-in: xác thực mã vé, phân quyền staff, cơ chế "dùng một lần"."""
+from datetime import timedelta
 
-from datetime import datetime, timedelta
+from app.timeutils import utc_now
 
 
 def _payload(**overrides):
@@ -8,8 +9,8 @@ def _payload(**overrides):
         "title": "Live Concert",
         "description": "Evening show",
         "location": "HCMC",
-        "start_time": (datetime.now() + timedelta(days=2)).isoformat(),
-        "end_time": (datetime.now() + timedelta(days=2, hours=3)).isoformat(),
+        "start_time": (utc_now() + timedelta(days=2)).isoformat(),
+        "end_time": (utc_now() + timedelta(days=2, hours=3)).isoformat(),
         "capacity": 10,
         "category": "Music",
         "banner_image": "https://example.com/c.png",
@@ -97,7 +98,6 @@ def test_checkin_requires_staff_role(client, auth_headers):
 
 def test_checkin_closed_in_ongoing(client, auth_headers):
     """ONGOING là giai đoạn chuẩn bị: staff chưa được check-in (chỉ STARTED)."""
-    from datetime import datetime, timedelta
 
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     staff = auth_headers(role="STAFF", email="staff@demo.com")

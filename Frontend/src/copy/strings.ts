@@ -85,7 +85,7 @@ export const strings = {
     passwordHint: 'At least 6 characters.',
     created: 'Account created.',
     accountRoles: { attendee: 'Attendee', staff: 'Staff', organizer: 'Organizer' },
-    sampleAccounts: { attendee: 'user1–user100 (1–100)', staff: 'staff1–staff5 (1–5)', organizer: 'organizer1–organizer2 (1–2)', password: '123456' },
+    sampleAccounts: { attendee: 'user1–user30 (1–30)', staff: 'staff1–staff5 (1–5)', organizer: 'organizer1–organizer2 (1–2)', password: '123456' },
     name: 'Name',
     email: 'Email',
     password: 'Password',
