@@ -16,12 +16,14 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..deps import bearer, get_authenticated_user, require
+from ..deps import bearer, get_authenticated_user, optional_user, require
 from ..errors import api_error
 from ..models import Event, Registration, User
+from ..access import can_view_event
 from ..schemas import (
     AUTH_RESPONSES,
     ERROR_400,
+    ERROR_401,
     ERROR_404,
     ERROR_409,
     ERROR_502,
@@ -122,8 +124,9 @@ def list_events(
     response: Response = None,  # type: ignore[assignment]  # FastAPI inject Response
     db: Session = Depends(get_db),
 ):
-    """Danh sách sự kiện: lọc status, tìm title, phân trang offset hoặc cursor.
+    """Danh sách công khai, luôn loại DRAFT, kể cả khi truyền status=DRAFT.
 
+    Bản nháp được liệt kê ở /organizer/events hoặc /staff/events có phân quyền.
     - Mặc định offset (giữ tương thích FE Phase 1).
     - Cursor mới mã hóa cặp (UTC start_time, id), không phải truy vấn lại anchor.
       Truyền nguyên header X-Next-Cursor vào request kế tiếp. UUID cũ vẫn được
@@ -132,7 +135,7 @@ def list_events(
     if cursor is not None and offset != 0:
         api_error(400, "CURSOR_OFFSET_CONFLICT", "Use either cursor or offset, not both")
 
-    stmt = select(Event)
+    stmt = select(Event).where(Event.status != "DRAFT")
     if status:
         stmt = stmt.where(Event.status == status)
     if q:
@@ -148,7 +151,7 @@ def list_events(
                 api_error(400, "INVALID_CURSOR", "Cursor is invalid or unsupported")
         else:
             anchor = db.get(Event, cursor)
-            if anchor is None:
+            if anchor is None or anchor.status == "DRAFT":
                 api_error(404, "CURSOR_NOT_FOUND", "Cursor event not found")
             anchor_time, anchor_id = anchor.start_time, anchor.id
         stmt = stmt.where(tuple_(Event.start_time, Event.id) > (anchor_time, anchor_id))
@@ -162,11 +165,23 @@ def list_events(
     return [to_event(e) for e in rows]
 
 
-@router.get("/events/{event_id}", response_model=EventOut, tags=["events"], responses={404: ERROR_404})
-def get_event(event_id: str, db: Session = Depends(get_db)):
-    """Chi tiết một sự kiện."""
+@router.get(
+    "/events/{event_id}", response_model=EventOut, tags=["events"],
+    responses={401: ERROR_401, 404: ERROR_404},
+    openapi_extra={"security": [{}]},
+)
+def get_event(
+    event_id: str,
+    user: User | None = Depends(optional_user),
+    db: Session = Depends(get_db),
+):
+    """Chi tiết công khai; DRAFT chỉ cho chủ sự kiện hoặc staff được phân công.
+
+    Trả cùng 404 khi không tồn tại hoặc không được xem bản nháp, tránh lộ DRAFT.
+    Không bắt buộc đăng nhập; nếu gửi token sai/hết hạn thì trả 401.
+    """
     event = db.get(Event, event_id)
-    if event is None:
+    if event is None or not can_view_event(db, user, event):
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
     return to_event(event)
 

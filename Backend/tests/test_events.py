@@ -187,7 +187,8 @@ def test_list_events_pagination(client, auth_headers):
     """Phase 1: GET /events hỗ trợ limit/offset."""
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     for i in range(3):
-        client.post("/events", json=_event_payload(title=f"E{i}"), headers=org)
+        event_id = client.post("/events", json=_event_payload(title=f"E{i}"), headers=org).json()["id"]
+        assert client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org).status_code == 200
 
     page1 = client.get("/events?limit=2&offset=0")
     page2 = client.get("/events?limit=2&offset=2")
@@ -202,7 +203,8 @@ def test_list_events_cursor_walk(client, auth_headers):
     """Phase 2: cursor keyset đi hết 3 event qua 2 trang + header X-Next-Cursor."""
     org = auth_headers(role="ORGANIZER", email="org@demo.com")
     for i in range(3):
-        client.post("/events", json=_event_payload(title=f"C{i}"), headers=org)
+        event_id = client.post("/events", json=_event_payload(title=f"C{i}"), headers=org).json()["id"]
+        assert client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org).status_code == 200
 
     page1 = client.get("/events?limit=2")
     assert page1.status_code == 200 and len(page1.json()) == 2

@@ -64,6 +64,14 @@ def get_authenticated_user(
     return user
 
 
+def optional_user(
+    credentials: str | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Cho phép khách; token đã gửi thì vẫn phải hợp lệ, không âm thầm bỏ qua."""
+    return None if credentials is None else get_authenticated_user(credentials, db)
+
+
 def require(*roles: str):
     """Factory trả về dependency kiểm tra role.
 

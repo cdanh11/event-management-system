@@ -7,9 +7,9 @@
 
 Luồng kiểm tra (đúng thứ tự để báo lỗi rõ ràng từng trường hợp):
   1. Barcode/ticket_code có tồn tại?
-  2. Vé đã hủy chưa? Đã dùng chưa?
-  3. Sự kiện có đang STARTED không?
-  4. Người check-in có quyền không (staff được gán / organizer sở hữu)?
+  2. Xác định event thật từ vé, kiểm tra quyền trước khi khóa/trả trạng thái vé.
+  3. Khóa event trước ticket; kiểm tra event được chọn và trạng thái vé/event.
+  4. Lưu check-in và đổi trạng thái vé trong cùng transaction.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import require
 from ..errors import api_error
-from ..models import Checkin, Event, Registration, StaffEventAssignment, Ticket, User
+from ..models import Checkin, Event, Registration, Ticket, User
+from ..access import can_operate_event
 from ..schemas import AUTH_RESPONSES, ERROR_400, ERROR_404, ERROR_409, CheckinIn, CheckinOut
 from ..serializers import to_checkin
 
@@ -38,10 +39,20 @@ def checkin(
     if ticket is None:
         api_error(404, "INVALID_TICKET", "Invalid ticket")
     reg = db.get(Registration, ticket.registration_id)
+    # Không tin event_id do client gửi: quyền phải kiểm tra trên event thật của vé.
+    # Người không có quyền nhận cùng 403, bất kể vé VALID/USED/CANCELLED hay
+    # event đã đóng. Vé không tồn tại vẫn trả 404; không tuyên bố chống dò mọi mã.
+    event = db.get(Event, reg.event_id)
+    if not can_operate_event(db, user, event):
+        api_error(403, "FORBIDDEN", "You cannot check in this event")
+
     # Khóa event trước ticket để cùng thứ tự với hủy đăng ký/chuyển trạng thái.
     # Trade-off MVP: các check-in cùng event bị tuần tự hóa trong transaction
     # ngắn. Bỏ khóa này cần thiết kế lại race với đóng cửa, không chỉ khóa vé.
-    event = db.scalar(select(Event).where(Event.id == reg.event_id).with_for_update())
+    event = db.scalar(
+        select(Event).where(Event.id == reg.event_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if payload.event_id is not None and payload.event_id != event.id:
         api_error(400, "WRONG_EVENT", "Ticket does not belong to the selected event")
     db.refresh(ticket, with_for_update=True)
@@ -53,19 +64,6 @@ def checkin(
 
     if event.status != "STARTED":
         api_error(400, "CHECKIN_CLOSED", "Check-in is only open while the event is STARTED")
-
-    if user.role == "ORGANIZER":
-        if event.organizer_id != user.id:
-            api_error(403, "FORBIDDEN", "You do not own this event")
-    else:
-        assigned = db.scalar(
-            select(StaffEventAssignment).where(
-                StaffEventAssignment.staff_id == user.id,
-                StaffEventAssignment.event_id == event.id,
-            )
-        )
-        if assigned is None:
-            api_error(403, "FORBIDDEN", "You are not assigned to this event")
 
     checkin_record = Checkin(
         ticket_id=ticket.id,
