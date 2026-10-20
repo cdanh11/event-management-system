@@ -4,6 +4,7 @@ Set TEST_POSTGRES_URL to a separate *_test or *_audit database. The main test
 observes actual PostgreSQL lock waits, rather than hoping thread starts overlap.
 The unlocked control demonstrates lost updates: five tickets, counter still 1.
 """
+import logging
 import os
 import threading
 import time
@@ -13,7 +14,7 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, delete, func, select, text
+from sqlalchemy import create_engine, delete, event as sql_event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -25,6 +26,7 @@ from app.timeutils import utc_now
 
 PG_URL = os.getenv("TEST_POSTGRES_URL")
 needs_pg = pytest.mark.skipif(not PG_URL, reason="requires a separate TEST_POSTGRES_URL")
+logger = logging.getLogger("evently.tests.checkin_race")
 
 
 @pytest.fixture
@@ -165,6 +167,128 @@ def test_unlocked_control_exposes_lost_update_and_extra_tickets(pg_app, monkeypa
         responses = list(pool.map(lambda h: client.post(f"/events/{event_id}/register", headers=h), attendees))
     assert [response.status_code for response in responses] == [201] * 5
     assert counts(sessions, event_id) == (1, 5, 5)
+
+
+@needs_pg
+def test_concurrent_checkin_same_ticket_only_once(pg_app):
+    """Hai staff tranh cùng vé: chờ khóa thật, một 201, một 409, một Checkin.
+
+    Listener chỉ giữ transaction đầu tại câu SELECT Event FOR UPDATE của API
+    thật. Không thay thuật toán khóa/check-in và không dựa vào sleep để đoán
+    hai request có chạy chồng lấn hay không.
+    """
+    client, sessions, engine, create_user = pg_app
+    org = create_user(client, "ORGANIZER")
+    attendee = create_user(client, "ATTENDEE")
+    staff_headers = [create_user(client, "STAFF") for _ in range(2)]
+    staff_ids = []
+    for headers in staff_headers:
+        response = client.get("/auth/me", headers=headers)
+        assert response.status_code == 200
+        staff_ids.append(response.json()["id"])
+
+    start = utc_now() + timedelta(days=5)
+    response = client.post("/events", headers=org, json={
+        "title": "Check-in race", "description": "Two assigned staff, one ticket",
+        "location": "HCMC", "start_time": start.isoformat(),
+        "end_time": (start + timedelta(hours=2)).isoformat(),
+        "capacity": 1, "category": "Test", "banner_image": "",
+    })
+    assert response.status_code == 201
+    event_id = response.json()["id"]
+    assert client.post(f"/events/{event_id}/transition", headers=org, json={"status": "PUBLISHED"}).status_code == 200
+    response = client.post(f"/events/{event_id}/register", headers=attendee)
+    assert response.status_code == 201
+    booking = response.json()
+    ticket_id = booking["ticket"]["id"]
+    assert booking["ticket"]["status"] == "VALID"
+    for staff_id in staff_ids:
+        assert client.post(f"/events/{event_id}/staff", headers=org, json={"staff_id": staff_id}).status_code == 201
+    assert client.post(f"/events/{event_id}/transition", headers=org, json={"status": "STARTED"}).status_code == 200
+    payload = {"event_id": event_id, "ticket_code": booking["ticket"]["ticket_code"]}
+
+    held, release, attempted = threading.Event(), threading.Event(), threading.Event()
+    guard = threading.Lock()
+    pids = []
+
+    def is_target_lock(statement, parameters):
+        sql = " ".join(statement.upper().split())
+        return ("FROM EVENTS " in sql and "FOR UPDATE" in sql
+                and isinstance(parameters, dict) and event_id in parameters.values())
+
+    def before_lock(connection, cursor, statement, parameters, context, executemany):
+        if not is_target_lock(statement, parameters):
+            return
+        # Truy vấn PID không khớp is_target_lock nên không đệ quy listener.
+        pid = connection.exec_driver_sql("SELECT pg_backend_pid()").scalar_one()
+        with guard:
+            first = not pids
+            pids.append(pid)
+            if len(pids) == 2:
+                attempted.set()
+        connection.info["hold_checkin_race"] = first
+
+    def after_lock(connection, cursor, statement, parameters, context, executemany):
+        if is_target_lock(statement, parameters) and connection.info.pop("hold_checkin_race", False):
+            logger.info("CHECKIN RACE: first request holds the Event row lock")
+            held.set()
+            assert release.wait(20), "Test did not release the first check-in transaction"
+
+    sql_event.listen(engine, "before_cursor_execute", before_lock)
+    sql_event.listen(engine, "after_cursor_execute", after_lock)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(client.post, "/checkins", headers=staff_headers[0], json=payload)]
+            try:
+                assert held.wait(10), "First check-in never acquired the Event row lock"
+                futures.append(pool.submit(client.post, "/checkins", headers=staff_headers[1], json=payload))
+                assert attempted.wait(10), "Second check-in never attempted the Event row lock"
+                assert len(pids) == 2 and len(set(pids)) == 2
+                deadline = time.monotonic() + 5
+                blocked = 0
+                while time.monotonic() < deadline:
+                    with engine.connect() as connection:
+                        blocked = connection.execute(text(
+                            "SELECT count(*) FROM pg_stat_activity "
+                            "WHERE pid = :waiting AND wait_event_type = 'Lock' "
+                            "AND :holder = ANY(pg_blocking_pids(pid))"
+                        ), {"waiting": pids[1], "holder": pids[0]}).scalar_one()
+                    if blocked == 1:
+                        break
+                    time.sleep(0.02)
+                assert blocked == 1, "Second check-in was not blocked by the first transaction"
+                assert not any(future.done() for future in futures)
+                logger.info("CHECKIN RACE: PostgreSQL confirms the second request waits for the first")
+            finally:
+                release.set()
+            responses = [future.result(timeout=15) for future in futures]
+    finally:
+        release.set()
+        sql_event.remove(engine, "before_cursor_execute", before_lock)
+        sql_event.remove(engine, "after_cursor_execute", after_lock)
+
+    statuses = [response.status_code for response in responses]
+    assert sorted(statuses) == [201, 409]
+    winner = statuses.index(201)
+    rejected = responses[statuses.index(409)]
+    assert rejected.json()["code"] == "TICKET_ALREADY_USED"
+    with sessions() as db:
+        rows = db.scalars(select(Checkin).where(Checkin.event_id == event_id)).all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.ticket_id == ticket_id
+        assert row.attendee_id == booking["registration"]["attendee_id"]
+        assert row.checked_in_by == staff_ids[winner]
+        assert row.status == "SUCCESS"
+        assert responses[winner].json()["id"] == row.id
+        assert db.get(Ticket, ticket_id).status == "USED"
+        assert db.get(Registration, booking["registration"]["id"]).status == "REGISTERED"
+        assert db.get(Event, event_id).registered_count == 1
+    logger.info(
+        "CHECKIN RACE RESULT: HTTP=%s; code=TICKET_ALREADY_USED; "
+        "checkins=1; ticket=USED; registered_count=1; winning staff matches DB",
+        sorted(statuses),
+    )
 
 
 @needs_pg
