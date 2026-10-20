@@ -28,6 +28,8 @@ Dashboard dùng SQL COUNT cho tổng registrations/checkins, tránh nạp mọi 
 
 ## Danh sách organizer và phép đo cuối
 
+**Kiểm chứng ngày 10/10/2026:** [output và cấu hình máy](../../docs/evidence/2026-10-10/README.md), source `9f5fafd`. DB benchmark riêng ban đầu không có event; 3000 hàng PUBLISHED, limit 20. EXPLAIN Execution Time đơn lẻ: **0,975 ms → 0,230 ms** trước/sau composite index. Plan sau index có **Index Scan + Incremental Sort** vì ORDER BY dùng `(start_time, id)` còn index chỉ có `(status, start_time)`. Trang sâu OFFSET/cursor mean 20 lần execute/fetchall: **2,048 ms / 0,907 ms**. Không gọi số EXPLAIN là mean 20 lần; chưa đo HTTP throughput/p95 hoặc sức chịu tải WS.
+
 GET /organizer/events giới hạn theo owner, lọc status/q, sort soonest/popular, limit/offset; trả items/total/has_more. SQL COUNT và LIMIT/OFFSET chạy trước serialization. Dashboard dùng subquery event IDs để tổng hợp, không tạo danh sách toàn bộ ID trong Python.
 
-Ngày 07/10/2026: PostgreSQL 16 local, 3000 rows bổ sung (3003 Published tổng), limit 20, 20 lần đo. EXPLAIN execution: 1.113 ms trước index, 0.154 ms sau index; deep offset trung bình 1.922 ms, cursor 0.961 ms. Dữ liệu/index benchmark được rollback. Đây là phép đo query local, không phải load test hoặc cam kết throughput.
+Ngày 07/10/2026 (số liệu lịch sử): PostgreSQL 16 local, 3000 rows bổ sung (3003 Published tổng), limit 20, 20 lần đo. EXPLAIN execution: 1.113 ms trước index, 0.154 ms sau index; deep offset trung bình 1.922 ms, cursor 0.961 ms. Dữ liệu/index benchmark được rollback. Đây là phép đo query local, không phải load test hoặc cam kết throughput.
