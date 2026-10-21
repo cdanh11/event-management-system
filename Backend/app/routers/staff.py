@@ -12,6 +12,7 @@ from ..db import get_db
 from ..deps import current_user, require
 from ..errors import api_error
 from ..models import Checkin, Event, Registration, StaffEventAssignment, Ticket, User
+from ..access import can_operate_event
 from ..schemas import (
     AUTH_RESPONSES,
     ERROR_400,
@@ -148,14 +149,16 @@ def assign_staff(
 
 @router.get("/users", response_model=list[UserOut], tags=["staff"])
 def list_users(
-    role: str | None = None,
+    role: Literal["STAFF"] = "STAFF",
     user: User = Depends(require("ORGANIZER")),
     db: Session = Depends(get_db),
 ):
-    """Danh sách user, lọc theo role. Dùng để organizer tìm staff gán vào event."""
-    stmt = select(User)
-    if role:
-        stmt = stmt.where(User.role == role)
+    """Danh sách STAFF để phân công; không phải danh bạ mọi người dùng.
+
+    Giữ query role=STAFF tương thích frontend; giá trị khác bị chặn 422.
+    Bộ lọc tại DB luôn cố định STAFF, kể cả khi client không truyền role.
+    """
+    stmt = select(User).where(User.role == "STAFF")
 
     users = db.scalars(stmt.order_by(User.name)).all()
     return [to_user(u) for u in users] # convert từng User → dict
@@ -181,23 +184,6 @@ def list_event_staff(
     return [to_staff_assignment(assignment, staff) for assignment, staff in rows]
 
 
-def _can_view_event(user: User, event: Event, db: Session) -> bool:
-    """Staff được gán hoặc organizer sở hữu mới được xem lịch sử check-in."""
-    if user.role == "ORGANIZER" and event.organizer_id == user.id:
-        return True
-    if user.role == "STAFF":
-        return (
-            db.scalar(
-                select(StaffEventAssignment).where(
-                    StaffEventAssignment.staff_id == user.id,
-                    StaffEventAssignment.event_id == event.id,
-                )
-            )
-            is not None
-        )
-    return False
-
-
 @router.get(
     "/events/{event_id}/checkins",
     response_model=list[CheckinHistoryOut],
@@ -210,7 +196,7 @@ def event_checkin_history(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    """Lịch sử check-in mới nhất của event (thông tin public: tên, mã vé, giờ).
+    """Lịch sử check-in riêng cho chủ sự kiện/staff được phân công.
 
     Dùng cho màn hình làm việc của staff và organizer — realtime bằng cách
     poll endpoint này kết hợp WS occupancy.
@@ -218,7 +204,7 @@ def event_checkin_history(
     event = db.get(Event, event_id)
     if event is None:
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
-    if not _can_view_event(user, event, db):
+    if not can_operate_event(db, user, event):
         api_error(403, "FORBIDDEN", "You cannot view this event")
 
     rows = db.execute(

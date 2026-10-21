@@ -140,11 +140,12 @@ def test_ws_attendee_receives_status_updates(client, make_user):
     att = {"Authorization": f"Bearer {att_token}"}
 
     event_id = client.post("/events", json=_payload(), headers=org).json()["id"]
+    assert client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org).status_code == 200
     ticket = client.post("/ws/ticket", headers=att).json()["ticket"]
     with client.websocket_connect(f"/ws/events/{event_id}?ticket={ticket}") as ws:
-        assert ws.receive_json()["status"] == "DRAFT"
+        assert ws.receive_json()["status"] == "PUBLISHED"
         # Organizer đổi trạng thái -> attendee nhận status mới realtime, không reload.
-        client.post(f"/events/{event_id}/transition", json={"status": "PUBLISHED"}, headers=org)
+        client.post(f"/events/{event_id}/transition", json={"status": "ONGOING"}, headers=org)
         update = ws.receive_json()
         assert update["event_id"] == event_id
-        assert update["status"] == "PUBLISHED"
+        assert update["status"] == "ONGOING"

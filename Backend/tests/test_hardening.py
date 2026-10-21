@@ -123,14 +123,18 @@ def test_staff_and_history_query_counts_do_not_grow_with_rows(client, auth_heade
         assert len(queries) == 3
 
 
-def test_cursor_survives_deleted_anchor_and_handles_identical_times(client, auth_headers):
+def test_cursor_survives_deleted_anchor_and_handles_identical_times(client, auth_headers, db):
     org = auth_headers(role="ORGANIZER", email="cursor@example.com")
     payload = event_payload()
     ids = {client.post("/events", headers=org, json={**payload, "title": f"Same {n}"}).json()["id"] for n in range(4)}
+    for event_id in ids:
+        assert client.post(f"/events/{event_id}/transition", headers=org, json={"status": "PUBLISHED"}).status_code == 200
     first = client.get("/events?limit=2")
     anchor = first.json()[-1]["id"]
     cursor = first.headers["X-Next-Cursor"]
-    assert client.delete(f"/events/{anchor}", headers=org).status_code == 204
+    # Giả lập anchor bị xóa tại DB: API chỉ cho xóa DRAFT, không xóa event công khai.
+    db.delete(db.get(Event, anchor))
+    db.commit()
     second = client.get("/events", params={"limit": 2, "cursor": cursor})
     assert second.status_code == 200
     assert {row["id"] for row in first.json() + second.json()} == ids

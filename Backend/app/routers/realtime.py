@@ -6,8 +6,9 @@
 
 Ticket sống 30s, dùng 1 lần — JWT không bao giờ đi trên query string
 (tránh dính log proxy, referer, history). Dữ liệu occupancy (số ghế/số vé)
-vốn đã public qua GET /events nên mọi role đã đăng nhập đều subscribe được;
-mã đóng: 4401 ticket sai/hết hạn/đã dùng, 4404 event không tồn tại.
+vốn đã public qua GET /events ở các trạng thái khác DRAFT. Bản nháp chỉ cho
+chủ sự kiện/staff được phân công, thống nhất với REST. Mã đóng: 4401 ticket
+sai/hết hạn/đã dùng; 4404 event không tồn tại hoặc bản nháp không được xem.
 """
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -17,6 +18,7 @@ from ..db import get_db
 from ..deps import current_user, require
 from ..errors import api_error
 from ..models import Event, User
+from ..access import can_view_event
 from ..realtime import WS_TICKET_TTL_SECONDS, manager, mint_ws_ticket, occupancy_payload, redeem_ws_ticket
 from ..schemas import AUTH_RESPONSES, ERROR_401, ERROR_404, OccupancyOut, WsTicketOut
 
@@ -31,10 +33,11 @@ def _ws_snapshot(websocket: WebSocket, event_id: str, db: Session = Depends(get_
     """
     try:
         user_id = redeem_ws_ticket(websocket.query_params.get("ticket"))
-        if not user_id or db.get(User, user_id) is None:
+        user = db.get(User, user_id) if user_id else None
+        if user is None:
             return {"close_code": 4401}
         event = db.get(Event, event_id)
-        if event is None:
+        if event is None or not can_view_event(db, user, event):
             return {"close_code": 4404}
         return {**occupancy_payload(event), "type": "snapshot"}
     finally:
@@ -45,13 +48,16 @@ def _ws_snapshot(websocket: WebSocket, event_id: str, db: Session = Depends(get_
     "/events/{event_id}/occupancy",
     response_model=OccupancyOut,
     tags=["realtime"],
-    dependencies=[Depends(require("ORGANIZER"))],
     responses={**AUTH_RESPONSES, 404: ERROR_404},
 )
-def event_occupancy(event_id: str, db: Session = Depends(get_db)):
-    """Snapshot occupancy cho dashboard Admin (cần ORGANIZER)."""
+def event_occupancy(
+    event_id: str,
+    user: User = Depends(require("ORGANIZER")),
+    db: Session = Depends(get_db),
+):
+    """Snapshot cho ORGANIZER; DRAFT của organizer khác được ẩn bằng 404."""
     event = db.get(Event, event_id)
-    if event is None:
+    if event is None or not can_view_event(db, user, event):
         api_error(404, "EVENT_NOT_FOUND", "Event not found")
     return occupancy_payload(event)
 
